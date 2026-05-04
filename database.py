@@ -475,6 +475,32 @@ def init_database():
         """)
         cursor.execute("DROP TABLE payments_legacy")
 
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'payment_allocations'")
+    allocation_sql = (cursor.fetchone() or [None])[0] or ""
+    if "payments_legacy" in allocation_sql:
+        cursor.execute("ALTER TABLE payment_allocations RENAME TO payment_allocations_legacy")
+        cursor.execute("""
+            CREATE TABLE payment_allocations (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_id      INTEGER NOT NULL,
+                schedule_id     INTEGER NOT NULL,
+                amount          REAL NOT NULL,
+                created_at      TEXT NOT NULL,
+                FOREIGN KEY (payment_id)  REFERENCES payments(id) ON DELETE CASCADE,
+                FOREIGN KEY (schedule_id) REFERENCES amortization_schedule(id) ON DELETE CASCADE,
+                UNIQUE(payment_id, schedule_id)
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO payment_allocations
+                (id, payment_id, schedule_id, amount, created_at)
+            SELECT pa.id, pa.payment_id, pa.schedule_id, pa.amount, pa.created_at
+            FROM payment_allocations_legacy pa
+            JOIN payments p ON p.id = pa.payment_id
+            JOIN amortization_schedule a ON a.id = pa.schedule_id
+        """)
+        cursor.execute("DROP TABLE payment_allocations_legacy")
+
     # ── Useful indexes ───────────────────────────────────────────
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_client ON loans(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status)")
