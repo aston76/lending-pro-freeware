@@ -791,6 +791,10 @@ body {
     gap: 8px;
 }
 
+.offline-banner.hidden {
+    display: none !important;
+}
+
 /* ── Loading Spinner ─────────────────────────────────────────── */
 .spinner {
     width: 18px;
@@ -829,6 +833,10 @@ body {
     justify-content: center;
     padding: 16px;
     animation: fadeIn 0.22s ease;
+}
+
+.pdf-viewer-overlay.hidden {
+    display: none !important;
 }
 
 .pdf-viewer-overlay.pdf-viewer-closing {
@@ -1012,6 +1020,10 @@ body {
     overflow: hidden;
     /* Open animation */
     animation: calcWidgetOpen 0.28s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+
+.calc-widget.hidden {
+    display: none !important;
 }
 
 @keyframes calcWidgetOpen {
