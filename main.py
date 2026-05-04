@@ -9,6 +9,7 @@ import sys
 import threading
 import socketserver
 import http.server
+import time
 import webview
 import logger  # persistent error logger
 from database import init_database, load_active_profile
@@ -44,7 +45,7 @@ def start_local_server(web_dir, port=34001):
     try:
         httpd = socketserver.TCPServer(("127.0.0.1", port), Handler)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        return f"http://127.0.0.1:{port}/index.html"
+        return f"http://127.0.0.1:{port}/index.html?startup={int(time.time())}"
     except Exception as e:
         print(f"Server start failed on {port}: {e}")
         return os.path.join(web_dir, 'index.html')
