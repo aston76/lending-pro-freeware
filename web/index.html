@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PH-Lending Pro</title>
+
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['-apple-system', 'Inter', 'BlinkMacSystemFont', 'Helvetica Neue', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="h-screen flex" style="background: var(--surface-1); color: var(--text-primary); overflow: clip;">
+
+    <!-- ═══ Offline Banner ═══ -->
+    <div id="offline-banner" class="offline-banner fixed top-0 left-0 right-0 z-50 hidden">
+        <i data-lucide="wifi-off" class="w-4 h-4"></i>
+        <span>Offline Mode — Cloud backups are unavailable</span>
+    </div>
+
+    <!-- ═══ Mobile Overlay ═══ -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden" onclick="App.toggleSidebar()"></div>
+
+    <!-- ═══ Sidebar — macOS style ═══ -->
+    <aside id="sidebar" class="sidebar w-60 h-screen flex flex-col flex-shrink-0 z-30">
+
+        <!-- Logo + Company Name -->
+        <div class="px-4 py-4 flex items-center gap-3 min-h-[64px]"
+            style="border-bottom: 0.5px solid rgba(0,0,0,0.07);">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300"
+                id="sidebar-logo"
+                style="background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 70%, purple) 100%); box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent);">
+                <i data-lucide="landmark" class="w-5 h-5 text-white" id="sidebar-logo-icon"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h1 id="sidebar-company-name" class="text-[14px] font-bold truncate leading-tight"
+                    style="color: var(--text-primary);">PH-Lending</h1>
+                <p class="text-[10px] font-medium tracking-widest uppercase" style="color: var(--text-tertiary);">Pro
+                </p>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+            <p class="section-title px-3 pt-1 pb-2">Main</p>
+            <a class="sidebar-link active" data-page="dashboard" onclick="App.navigate('dashboard')">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span>Dashboard</span>
+            </a>
+            <a class="sidebar-link" data-page="clients" onclick="App.navigate('clients')">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span>Clients</span>
+            </a>
+            <a class="sidebar-link" data-page="loans" onclick="App.navigate('loans')">
+                <i data-lucide="banknote" class="w-4 h-4"></i>
+                <span>Loans</span>
+            </a>
+            <a class="sidebar-link" data-page="payments" onclick="App.navigate('payments')">
+                <i data-lucide="receipt" class="w-4 h-4"></i>
+                <span>Payments</span>
+            </a>
+            <a class="sidebar-link" data-page="calendar" onclick="App.navigate('calendar')">
+                <i data-lucide="calendar-check" class="w-4 h-4"></i>
+                <span>Collections</span>
+            </a>
+            <a class="sidebar-link" data-page="alerts" onclick="App.navigate('alerts')">
+                <i data-lucide="bell-ring" class="w-4 h-4"></i>
+                <span>Alerts</span>
+                <span id="alerts-badge" class="hidden ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style="background: #FF3B30; color: white; min-width: 18px; text-align: center;"></span>
+            </a>
+            <a class="sidebar-link" data-page="commissions" onclick="App.navigate('commissions')">
+                <i data-lucide="gift" class="w-4 h-4"></i>
+                <span>Referrals</span>
+            </a>
+
+            <div style="height: 0.5px; background: rgba(0,0,0,0.07); margin: 10px 8px;"></div>
+            <p class="section-title px-3 pb-1">System</p>
+            <a class="sidebar-link" data-page="settings" onclick="App.navigate('settings')">
+                <i data-lucide="settings-2" class="w-4 h-4"></i>
+                <span>Settings</span>
+            </a>
+            <a class="sidebar-link" data-page="help" onclick="App.navigate('help')">
+                <i data-lucide="book-open" class="w-4 h-4"></i>
+                <span>Help &amp; Guide</span>
+            </a>
+            <a class="sidebar-link" data-page="logs" onclick="App.navigate('logs')" title="Error and event log">
+                <i data-lucide="scroll-text" class="w-4 h-4"></i>
+                <span>System Logs</span>
+            </a>
+        </nav>
+
+        <!-- Bottom actions -->
+        <div class="px-2 pb-3 space-y-0.5" style="border-top: 0.5px solid rgba(0,0,0,0.07); padding-top: 8px;">
+            <button onclick="App.toggleTheme()" class="sidebar-link w-full" id="theme-toggle-btn">
+                <i data-lucide="moon" class="w-4 h-4" id="theme-icon"></i>
+                <span id="theme-label">Dark Mode</span>
+            </button>
+            <button onclick="App.quitApp()" class="sidebar-link w-full" style="color: var(--apple-red); opacity: 0.75;"
+                onmouseenter="this.style.opacity='1'; this.style.background='rgba(255,59,48,0.08)'"
+                onmouseleave="this.style.opacity='0.75'; this.style.background=''">
+                <i data-lucide="power" class="w-4 h-4"></i>
+                <span>Quit App</span>
+            </button>
+            <p class="text-[10px] text-center pt-1" style="color: var(--text-tertiary);">v1.0.0 — PH-Lending Pro</p>
+        </div>
+    </aside>
+
+    <!-- ═══ Main Content Area ═══ -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden" style="background: var(--surface-1);">
+        <!-- Header — Apple toolbar style -->
+        <header class="h-14 flex items-center justify-between px-5 flex-shrink-0 glass"
+            style="border-bottom: 0.5px solid rgba(0,0,0,0.08);">
+            <div class="flex items-center gap-3">
+                <!-- Mobile hamburger -->
+                <button onclick="App.toggleSidebar()" class="btn btn-icon btn-ghost lg:hidden" id="hamburger-btn">
+                    <i data-lucide="menu" class="w-4 h-4"></i>
+                </button>
+                <div>
+                    <h2 id="page-title" class="text-[17px] font-semibold leading-tight"
+                        style="color: var(--text-primary); letter-spacing: -0.3px;">Dashboard</h2>
+                    <p id="page-subtitle" class="text-[11px] hidden sm:block" style="color: var(--text-tertiary);">
+                        Overview of your lending portfolio</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- AutoSave indicator -->
+                <div id="autosave-indicator"
+                    class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                    style="background: rgba(0,122,255,0.10); color: var(--accent);">
+                    <div class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--accent);"
+                        id="autosave-dot"></div>
+                    <span id="autosave-text">Saving…</span>
+                </div>
+
+                <!-- Online status -->
+                <div id="online-status" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                    style="background: rgba(52,199,89,0.12); color: #1A8F3A;">
+                    <div class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--apple-green);"></div>
+                    <span class="hidden sm:inline">Online</span>
+                </div>
+
+                <!-- Sounds quick toggle -->
+                <button onclick="App.quickToggleSound()" id="sound-btn" class="btn btn-icon btn-ghost"
+                    title="Toggle sounds">
+                    <i data-lucide="volume-2" class="w-4 h-4" id="sound-icon"></i>
+                </button>
+
+                <button onclick="App.toggleCalculator()" class="btn btn-icon btn-ghost" title="Calculator">
+                    <i data-lucide="calculator" class="w-4 h-4"></i>
+                </button>
+                <button onclick="PrintManager.smartPrint()" id="print-btn" class="btn btn-icon btn-ghost"
+                    title="Print / Preview">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                </button>
+                <button onclick="App.showQuickActions()" class="btn btn-primary btn-sm flex items-center gap-1.5">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>New</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div id="page-content" class="flex-1 overflow-y-auto p-5 sm:p-6">
+            <!-- Pages rendered here -->
+        </div>
+    </main>
+
+    <!-- ═══ Floating Calculator (iOS style) ═══ -->
+    <div id="calculator-widget" class="calc-widget select-none hidden" onmousedown="App.startDragCalc(event)">
+        <!-- Drag handle + close -->
+        <div class="calc-header" id="calc-drag-handle">
+            <button onclick="App.toggleCalculator()" class="calc-close-btn">
+                <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+        </div>
+        <!-- Display -->
+        <div class="calc-display-area">
+            <input type="text" id="calc-display" readonly value="0">
+        </div>
+        <!-- Button Grid -->
+        <div class="calc-grid">
+            <!-- Row 1 -->
+            <button class="calc-btn-ios calc-btn-light" onclick="App.calcAction('clear')">AC</button>
+            <button class="calc-btn-ios calc-btn-light" onclick="App.calcAction('negate')">+/−</button>
+            <button class="calc-btn-ios calc-btn-light" onclick="App.calcInput('%')">%</button>
+            <button class="calc-btn-ios calc-btn-orange" id="calc-op-div" onclick="App.calcInput('/')">÷</button>
+            <!-- Row 2 -->
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('7')">7</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('8')">8</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('9')">9</button>
+            <button class="calc-btn-ios calc-btn-orange" id="calc-op-mul" onclick="App.calcInput('*')">×</button>
+            <!-- Row 3 -->
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('4')">4</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('5')">5</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('6')">6</button>
+            <button class="calc-btn-ios calc-btn-orange" id="calc-op-sub" onclick="App.calcInput('-')">−</button>
+            <!-- Row 4 -->
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('1')">1</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('2')">2</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('3')">3</button>
+            <button class="calc-btn-ios calc-btn-orange" id="calc-op-add" onclick="App.calcInput('+')">+</button>
+            <!-- Row 5 -->
+            <button class="calc-btn-ios calc-btn-num calc-btn-zero" onclick="App.calcInput('0')">0</button>
+            <button class="calc-btn-ios calc-btn-num" onclick="App.calcInput('.')">.</button>
+            <button class="calc-btn-ios calc-btn-orange" onclick="App.calcAction('equals')">=</button>
+        </div>
+    </div>
+
+    <!-- ═══ Modal Container ═══ -->
+    <div id="modal-container"></div>
+
+    <!-- ═══ Toast Container ═══ -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- ═══ PDF Viewer Overlay ═══ -->
+    <div id="pdf-viewer-overlay" class="pdf-viewer-overlay hidden">
+        <div class="pdf-viewer-container">
+            <div class="pdf-viewer-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl flex items-center justify-center"
+                        style="background: rgba(255,255,255,0.15);">
+                        <i data-lucide="file-text" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <div>
+                        <p id="pdf-viewer-title" class="text-white font-semibold text-sm leading-tight">Document</p>
+                        <p id="pdf-viewer-subtitle" class="text-white/60 text-xs">Preview</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="PrintManager.printCurrentPdf()" class="pdf-viewer-btn" title="Print">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Print</span>
+                    </button>
+                    <button onclick="PrintManager.downloadCurrentPdf()" class="pdf-viewer-btn" title="Download">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Open</span>
+                    </button>
+                    <button onclick="PrintManager.closePdfViewer()" class="pdf-viewer-close" title="Close">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="pdf-viewer-body">
+                <div id="pdf-viewer-loading" class="pdf-viewer-loading">
+                    <div class="pdf-spinner"></div>
+                    <p class="text-white/70 mt-3 text-sm">Generating PDF…</p>
+                </div>
+                <iframe id="pdf-viewer-frame" class="pdf-viewer-frame hidden" title="PDF Preview"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Scripts ═══ -->
+    <script src="components.js"></script>
+    <script src="pages/dashboard.js"></script>
+    <script src="pages/clients.js"></script>
+    <script src="pages/client_detail.js"></script>
+    <script src="pages/loans.js"></script>
+    <script src="pages/loan_detail.js"></script>
+    <script src="pages/payments.js"></script>
+    <script src="pages/calendar.js"></script>
+    <script src="pages/alerts.js"></script>
+    <script src="pages/commissions.js"></script>
+    <script src="pages/settings.js"></script>
+    <script src="pages/help.js"></script>
+    <script src="pages/logs.js"></script>
+    <script src="print_manager.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

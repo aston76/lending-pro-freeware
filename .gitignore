@@ -1,0 +1,51 @@
+# macOS / system
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+venv_win/
+.venv/
+
+# Local app data and secrets
+*.db
+*.sqlite
+*.sqlite3
+*.log
+.env
+.env.*
+google_credentials.json
+google_token.json
+credentials.json
+token.json
+
+# Build / packaging outputs
+build/
+dist/
+*.spec
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.exe
+*.msi
+*.dmg
+*.app/
+
+# Local generated exports
+exports/
+pdfs/
+backups/
+media/
