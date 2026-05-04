@@ -102,7 +102,7 @@ const UI = {
             const css = document.createElement('link');
             css.id = 'leaflet-css';
             css.rel = 'stylesheet';
-            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            css.href = 'vendor/leaflet.css';
             document.head.appendChild(css);
         }
 
@@ -196,7 +196,7 @@ const UI = {
         } else {
             const script = document.createElement('script');
             script.id = 'leaflet-js';
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.src = 'vendor/leaflet.js';
             script.onload = initMap;
             document.head.appendChild(script);
         }

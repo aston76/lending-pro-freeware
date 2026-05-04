@@ -161,6 +161,9 @@ const LoanDetailPage = {
                                             <button onclick="event.stopPropagation(); LoanDetailPage.generateReceipt(${p.id})" class="btn btn-ghost btn-sm" title="Ouvrir dans Aperçu">
                                                 <i data-lucide="file-text" class="w-4 h-4"></i>
                                             </button>
+                                            <button onclick="event.stopPropagation(); LoanDetailPage.showVoidPaymentModal(${p.id}, ${Number(p.amount || 0)})" class="btn btn-ghost btn-sm text-red-500" title="Void payment">
+                                                <i data-lucide="undo-2" class="w-4 h-4"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 `).join('')}
@@ -238,6 +241,46 @@ const LoanDetailPage = {
         UI.closeModal();
         UI.toast('Payment recorded!', 'success');
         this.render(this.loanId);
+    },
+
+    showVoidPaymentModal(paymentId, amount) {
+        UI.showModal('Void Payment', `
+            <div class="space-y-4">
+                <div class="p-3 rounded-xl" style="background:rgba(255,59,48,0.06); border:1px solid rgba(255,59,48,0.2);">
+                    <p class="text-sm font-semibold" style="color:var(--apple-red)">This removes ${UI.formatCurrency(amount)} from loan totals without deleting the receipt record.</p>
+                    <p class="text-xs mt-1" style="color:var(--text-secondary)">Use this only for entry mistakes or cancelled payments.</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Reason *</label>
+                    <input id="void-payment-reason" class="input" placeholder="Example: duplicate entry" autocomplete="off">
+                </div>
+                <div class="flex gap-3 justify-end pt-2">
+                    <button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button>
+                    <button onclick="LoanDetailPage.submitVoidPayment(${paymentId})" class="btn btn-danger">
+                        <i data-lucide="undo-2" class="w-4 h-4"></i> Void Payment
+                    </button>
+                </div>
+            </div>
+        `, { width: 'max-w-md' });
+        lucide.createIcons();
+        setTimeout(() => document.getElementById('void-payment-reason')?.focus(), 100);
+    },
+
+    async submitVoidPayment(paymentId) {
+        const reason = document.getElementById('void-payment-reason')?.value?.trim() || '';
+        if (reason.length < 3) {
+            UI.toast('Reason is required.', 'warning');
+            return;
+        }
+        const result = await App.api('void_payment', paymentId, reason);
+        if (result && result.success) {
+            UI.closeModal();
+            UI.toast('Payment voided.', 'success');
+            await App.refreshAlertsBadge();
+            this.render(this.loanId);
+        } else {
+            UI.toast(result?.error || 'Could not void payment.', 'error');
+        }
     },
 
     async generateContract() {

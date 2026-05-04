@@ -162,7 +162,7 @@ const HelpPage = {
                         <ul class="mt-2 space-y-1 ml-4">
                             <li>• <strong>Amount (₱)</strong> — amount received (not necessarily equal to the monthly installment)</li>
                             <li>• <strong>Payment Date</strong> — actual payment date (today by default)</li>
-                            <li>• <strong>Method</strong> — Cash / GCash / Bank Transfer</li>
+                            <li>• <strong>Method</strong> — Cash / GCash / Bank Transfer / Check</li>
                             <li>• <strong>Notes</strong> — reference, transaction number, etc.</li>
                         </ul>
                         <div class="help-tip mt-2">
@@ -171,7 +171,7 @@ const HelpPage = {
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Partial Payments</h5>
-                        <p>You can record multiple partial payments. The system accumulates amounts and updates the progress bar. There is no amount validation — you can record any amount.</p>
+                        <p>You can record multiple partial payments. The system allocates each amount to the oldest unpaid installment first and updates the progress bar. Payments must be greater than zero.</p>
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Generate a PDF Receipt</h5>
@@ -300,7 +300,7 @@ const HelpPage = {
                         <p>Use the <strong>◄ ►</strong> arrows to navigate between months. Click a client in the day detail to go directly to their loan.</p>
                     </div>
                     <div class="help-tip">
-                        💡 The calendar is based on the amortization schedule generated at loan creation. It does not take into account payments already made.
+                        💡 The calendar is based on unpaid amortization installments. Fully paid installments are hidden, and partial payments show only the remaining amount to collect.
                     </div>
                 </div>
             `
@@ -368,6 +368,7 @@ const HelpPage = {
                             <li>• <code>.xlsx</code> — full Excel export</li>
                             <li>• <code>.json</code> — raw export of all data</li>
                         </ul>
+                        <p class="mt-2">Use <strong>Restore</strong> to restore a local backup. The app creates a fresh safety backup before replacing the current profile database.</p>
                         <div class="help-tip mt-2">
                             🔒 A backup is automatically created every time the application closes.
                         </div>

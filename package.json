@@ -1,0 +1,21 @@
+{
+  "name": "loan-manager",
+  "version": "1.0.0",
+  "description": "PH-Lending Pro loan manager desktop app",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i ./web/tailwind-input.css -o ./web/vendor/tailwind.css --minify",
+    "check": "python3 scripts/check_project.py",
+    "test": "pytest -q"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aston76/loan-manager.git"
+  },
+  "devDependencies": {
+    "leaflet": "^1.9.4",
+    "lucide": "^0.468.0",
+    "tailwindcss": "^3.4.17"
+  }
+}

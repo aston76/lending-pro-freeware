@@ -176,10 +176,16 @@ const PaymentsPage = {
                                         ${this._methodBadge(p.payment_method)}
                                     </td>
                                     <td>
-                                        <button onclick="PaymentsPage.generateReceipt(${p.payment_id})" 
-                                                class="btn btn-sm btn-ghost" title="Generate Receipt">
-                                            <i data-lucide="file-text" class="w-4 h-4"></i>
-                                        </button>
+                                        <div class="flex items-center gap-1">
+                                            <button onclick="PaymentsPage.generateReceipt(${p.payment_id})"
+                                                    class="btn btn-sm btn-ghost" title="Generate Receipt">
+                                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="PaymentsPage.showVoidPaymentModal(${p.payment_id}, ${Number(p.amount || 0)})"
+                                                    class="btn btn-sm btn-ghost text-red-500" title="Void payment">
+                                                <i data-lucide="undo-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             `}).join('')}
@@ -288,6 +294,45 @@ const PaymentsPage = {
             }
         } catch (e) {
             UI.toast('Error generating receipt', 'error');
+        }
+    },
+
+    showVoidPaymentModal(paymentId, amount) {
+        UI.showModal('Void Payment', `
+            <div class="space-y-4">
+                <div class="p-3 rounded-xl" style="background:rgba(255,59,48,0.06); border:1px solid rgba(255,59,48,0.2);">
+                    <p class="text-sm font-semibold" style="color:var(--apple-red)">This removes ${UI.formatCurrency(amount)} from totals without deleting the original record.</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Reason *</label>
+                    <input id="void-payment-reason" class="input" placeholder="Example: duplicate entry" autocomplete="off">
+                </div>
+                <div class="flex gap-3 justify-end pt-2">
+                    <button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button>
+                    <button onclick="PaymentsPage.submitVoidPayment(${paymentId})" class="btn btn-danger">
+                        <i data-lucide="undo-2" class="w-4 h-4"></i> Void Payment
+                    </button>
+                </div>
+            </div>
+        `, { width: 'max-w-md' });
+        lucide.createIcons();
+        setTimeout(() => document.getElementById('void-payment-reason')?.focus(), 100);
+    },
+
+    async submitVoidPayment(paymentId) {
+        const reason = document.getElementById('void-payment-reason')?.value?.trim() || '';
+        if (reason.length < 3) {
+            UI.toast('Reason is required.', 'warning');
+            return;
+        }
+        const result = await App.api('void_payment', paymentId, reason);
+        if (result && result.success) {
+            UI.closeModal();
+            UI.toast('Payment voided.', 'success');
+            await App.refreshAlertsBadge();
+            await Promise.all([this.loadPayments(), this.loadMonthlyEarnings()]);
+        } else {
+            UI.toast(result?.error || 'Could not void payment.', 'error');
         }
     }
 };

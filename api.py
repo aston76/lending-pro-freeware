@@ -6,6 +6,9 @@ All methods are callable from JavaScript as pywebview.api.<method_name>()
 
 import os
 import sys
+import hmac
+import secrets
+import hashlib
 import json
 import sqlite3
 import base64
@@ -30,7 +33,8 @@ from pdf_generator import generate_contract_pdf, generate_receipt_pdf, generate_
 from excel_export import export_all_to_excel, export_selective
 from backup import (
     backup_local, get_backup_status, list_backups,
-    sync_to_drive, open_drive_folder, is_drive_configured, check_internet
+    sync_to_drive, open_drive_folder, is_drive_configured, check_internet,
+    restore_local_backup
 )
 
 PDF_DIR = os.path.join(APP_SUPPORT_DIR, "pdfs")
@@ -42,6 +46,8 @@ PAYMENT_METHOD_ALIASES = {
     "bank transfer": "bank_transfer",
     "bank-transfer": "bank_transfer",
 }
+PASSWORD_HASH_ALGO = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = 260_000
 
 
 def _normalize_payment_method(method):
@@ -52,6 +58,52 @@ def _normalize_payment_method(method):
             "Invalid payment method. Use cash, gcash, bank_transfer, or check."
         )
     return normalized
+
+
+def _hash_profile_password(password, salt=None, iterations=PASSWORD_HASH_ITERATIONS):
+    """Hash a profile password with PBKDF2 and return a portable encoded value."""
+    raw_password = str(password or "")
+    if not raw_password:
+        raise ValueError("Password is required.")
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_password.encode("utf-8"),
+        salt,
+        int(iterations),
+    )
+    return f"{PASSWORD_HASH_ALGO}${int(iterations)}${salt.hex()}${digest.hex()}"
+
+
+def _verify_profile_password(raw_password, stored_hash):
+    """Verify PBKDF2 hashes and legacy SHA-256 hashes."""
+    stored_hash = str(stored_hash or "")
+    raw_password = str(raw_password or "")
+    if not raw_password or not stored_hash:
+        return False, False
+
+    parts = stored_hash.split("$")
+    if len(parts) == 4 and parts[0] == PASSWORD_HASH_ALGO:
+        try:
+            iterations = int(parts[1])
+            salt = bytes.fromhex(parts[2])
+            expected = bytes.fromhex(parts[3])
+        except (TypeError, ValueError):
+            return False, False
+        actual = hashlib.pbkdf2_hmac(
+            "sha256",
+            raw_password.encode("utf-8"),
+            salt,
+            iterations,
+        )
+        return hmac.compare_digest(actual, expected), False
+
+    # Backward compatibility for existing SHA-256-only profile passwords.
+    if len(stored_hash) == 64:
+        legacy = hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
+        return hmac.compare_digest(legacy, stored_hash), True
+
+    return False, False
 
 
 def _open_native(targets, app=None):
@@ -137,6 +189,81 @@ class Api:
         init_database()
         self._is_demo = False
 
+    def _audit_event(self, cursor, event_type, entity_type, entity_id="", details=None):
+        """Write a compact business audit event inside the caller transaction."""
+        try:
+            cursor.execute("""
+                INSERT INTO audit_events (event_type, entity_type, entity_id, details, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                event_type,
+                entity_type,
+                str(entity_id or ""),
+                json.dumps(details or {}, ensure_ascii=False),
+                datetime.now().isoformat()
+            ))
+        except Exception as e:
+            app_logger.warning("Audit event skipped: %s", e)
+
+    def _allocate_payment(self, cursor, loan_id, payment_id, amount):
+        """
+        Allocate a payment to the earliest unpaid installments.
+        This keeps the collection calendar deterministic even with partial payments.
+        """
+        remaining_amount = round(float(amount), 2)
+        if remaining_amount <= 0:
+            return
+
+        cursor.execute("""
+            SELECT
+                a.id,
+                a.total_due,
+                COALESCE((
+                    SELECT SUM(pa.amount)
+                    FROM payment_allocations pa
+                    JOIN payments p ON p.id = pa.payment_id
+                    WHERE pa.schedule_id = a.id
+                      AND p.voided_at IS NULL
+                ), 0) AS already_allocated
+            FROM amortization_schedule a
+            WHERE a.loan_id = ?
+            ORDER BY a.month_number ASC
+        """, (loan_id,))
+
+        now = datetime.now().isoformat()
+        for schedule in cursor.fetchall():
+            if remaining_amount <= 0:
+                break
+            open_amount = round(schedule["total_due"] - schedule["already_allocated"], 2)
+            if open_amount <= 0:
+                continue
+            allocated = min(remaining_amount, open_amount)
+            cursor.execute("""
+                INSERT OR REPLACE INTO payment_allocations
+                    (payment_id, schedule_id, amount, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (payment_id, schedule["id"], round(allocated, 2), now))
+            remaining_amount = round(remaining_amount - allocated, 2)
+
+    def _recompute_loan_status(self, cursor, loan_id):
+        """Mark a loan paid or active based on non-voided payments."""
+        cursor.execute("SELECT principal, total_interest, status FROM loans WHERE id = ?", (loan_id,))
+        loan = cursor.fetchone()
+        if not loan:
+            return
+        if loan["status"] in ("defaulted", "refinanced"):
+            return
+        total_due = loan["principal"] + loan["total_interest"]
+        cursor.execute("""
+            SELECT COALESCE(SUM(amount), 0)
+            FROM payments
+            WHERE loan_id = ? AND voided_at IS NULL
+        """, (loan_id,))
+        total_paid = cursor.fetchone()[0]
+        new_status = "paid" if total_paid >= total_due else "active"
+        if new_status != loan["status"]:
+            cursor.execute("UPDATE loans SET status = ? WHERE id = ?", (new_status, loan_id))
+
     def toggle_demo_mode(self, enabled):
         """Toggle demo mode (uses a separate prepopulated database)."""
         self._is_demo = enabled
@@ -170,11 +297,11 @@ class Api:
             conn = get_connection()
             c = conn.cursor()
             # Delete in order (foreign keys)
-            for table in ['referral_commissions', 'penalties', 'payments',
+            for table in ['payment_allocations', 'referral_commissions', 'penalties', 'payments',
                           'amortization_schedule', 'loans', 'documents', 'clients']:
                 c.execute(f"DELETE FROM {table}")
             # Reset auto-increment sequences
-            c.execute("DELETE FROM sqlite_sequence WHERE name IN ('loans','payments','amortization_schedule','penalties','documents','referral_commissions')")
+            c.execute("DELETE FROM sqlite_sequence WHERE name IN ('loans','payments','amortization_schedule','penalties','documents','referral_commissions','payment_allocations')")
             conn.commit()
             conn.close()
 
@@ -229,6 +356,7 @@ class Api:
             SELECT COALESCE(SUM(p.amount), 0)
             FROM payments p
             JOIN loans l ON p.loan_id = l.id
+            WHERE p.voided_at IS NULL
         """)
         total_collected = c.fetchone()[0]
 
@@ -347,7 +475,7 @@ class Api:
         # Get loans with total_paid
         c.execute("""
             SELECT l.*,
-                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id) as total_paid
+                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) as total_paid
             FROM loans l WHERE l.client_id = ?
             ORDER BY l.created_at DESC
         """, (client_id,))
@@ -406,6 +534,9 @@ class Api:
             data.get('notes', ''),
             now, now
         ))
+        self._audit_event(c, "client_created", "client", client_id, {
+            "name": f"{data.get('first_name', '')} {data.get('last_name', '')}".strip()
+        })
         conn.commit()
         conn.close()
         return client_id
@@ -430,6 +561,9 @@ class Api:
         values.append(client_id)
 
         c.execute(f"UPDATE clients SET {', '.join(fields)} WHERE id = ?", values)
+        self._audit_event(c, "client_updated", "client", client_id, {
+            "fields": sorted(data.keys())
+        })
         conn.commit()
         conn.close()
         return True
@@ -438,6 +572,7 @@ class Api:
         """Delete a client and all related data."""
         conn = get_connection()
         c = conn.cursor()
+        self._audit_event(c, "client_deleted", "client", client_id)
         c.execute("DELETE FROM clients WHERE id = ?", (client_id,))
         conn.commit()
         conn.close()
@@ -517,13 +652,13 @@ class Api:
                 if old_loan["status"] != "active":
                     raise ValueError("Only active loans can be refinanced.")
 
-                c.execute("SELECT COUNT(*) FROM payments WHERE loan_id = ?", (rollover_id,))
+                c.execute("SELECT COUNT(*) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (rollover_id,))
                 paid_count = c.fetchone()[0]
                 if renewal_mode and paid_count < 3:
                     raise ValueError("Renewal requires at least 3 recorded payments on the active loan.")
 
                 total_due_old = old_loan['principal'] + old_loan['total_interest']
-                c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ?",
+                c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL",
                           (rollover_id,))
                 already_paid = c.fetchone()[0]
                 rollover_amount = max(0, total_due_old - already_paid)
@@ -590,6 +725,15 @@ class Api:
                     VALUES (?, ?, ?, ?, 'pending', ?)
                 """, (client['referred_by'], client_id, loan_id, commission, now))
 
+            self._audit_event(c, "loan_created", "loan", loan_id, {
+                "client_id": client_id,
+                "principal": new_principal,
+                "term_months": term_months,
+                "interest_type": interest_type,
+                "renewal_mode": renewal_mode,
+                "rollover_amount": rollover_amount
+            })
+
             conn.commit()
             app_logger.info("Loan created: loan_id=%s client_id=%s principal=%.2f renewal_mode=%s",
                             loan_id, client_id, new_principal, renewal_mode)
@@ -634,12 +778,12 @@ class Api:
         loan['schedule'] = rows_to_list(c.fetchall())
 
         # Payments
-        c.execute("SELECT * FROM payments WHERE loan_id = ? ORDER BY payment_date DESC",
+        c.execute("SELECT * FROM payments WHERE loan_id = ? AND voided_at IS NULL ORDER BY payment_date DESC",
                   (loan_id,))
         loan['payments'] = rows_to_list(c.fetchall())
 
         # Total paid
-        c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ?", (loan_id,))
+        c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (loan_id,))
         loan['total_paid'] = c.fetchone()[0]
         loan['remaining'] = round(
             loan['principal'] + loan['total_interest'] - loan['total_paid'], 2
@@ -654,7 +798,7 @@ class Api:
         c = conn.cursor()
         c.execute("""
             SELECT l.*,
-                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id) as total_paid
+                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) as total_paid
             FROM loans l WHERE l.client_id = ?
             ORDER BY l.created_at DESC
         """, (client_id,))
@@ -684,7 +828,7 @@ class Api:
 
         c.execute(f"""
             SELECT l.*, c.first_name, c.last_name,
-                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id) as total_paid
+                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) as total_paid
             FROM loans l
             JOIN clients c ON l.client_id = c.id
             {where}
@@ -739,7 +883,7 @@ class Api:
                 return {"success": False, "error": "Only active loans can be extended"}
 
             # Calculate total paid
-            c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ?", (loan_id,))
+            c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (loan_id,))
             total_paid = c.fetchone()[0]
 
             # Remaining balance
@@ -780,6 +924,10 @@ class Api:
                     entry['total_due'], entry['balance_remaining']
                 ))
 
+            self._audit_event(c, "loan_extended", "loan", loan_id, {
+                "additional_months": additional_months,
+                "new_term": new_term
+            })
             conn.commit()
             app_logger.info("Loan extended: loan_id=%s added %d months", loan_id, additional_months)
             return {"success": True, "new_term": new_term, "additional_months": additional_months}
@@ -808,6 +956,7 @@ class Api:
                 COUNT(DISTINCT l.client_id) AS unique_clients
             FROM payments p
             JOIN loans l ON p.loan_id = l.id
+            WHERE p.voided_at IS NULL
             GROUP BY month
             ORDER BY month DESC
             LIMIT 24
@@ -844,10 +993,11 @@ class Api:
                 c.id AS client_id,
                 c.first_name,
                 c.last_name,
-                (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id) AS total_paid_on_loan
+                (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) AS total_paid_on_loan
             FROM payments p
             JOIN loans l ON p.loan_id = l.id
             JOIN clients c ON l.client_id = c.id
+            WHERE p.voided_at IS NULL
             ORDER BY p.payment_date DESC, p.id DESC
             LIMIT ?
         """, (int(limit),))
@@ -887,25 +1037,27 @@ class Api:
                 cl.last_name,
                 cl.contact,
                 cl.email,
-                COALESCE((SELECT SUM(amount) FROM payments WHERE loan_id = l.id), 0) AS total_paid,
-                (
-                    SELECT COALESCE(SUM(a2.total_due), 0)
-                    FROM amortization_schedule a2
-                    WHERE a2.loan_id = a.loan_id
-                      AND a2.month_number <= a.month_number
-                ) AS cumulative_due
+                COALESCE((SELECT SUM(amount) FROM payments WHERE loan_id = l.id AND voided_at IS NULL), 0) AS total_paid,
+                COALESCE((
+                    SELECT SUM(pa.amount)
+                    FROM payment_allocations pa
+                    JOIN payments p ON p.id = pa.payment_id
+                    WHERE pa.schedule_id = a.id
+                      AND p.voided_at IS NULL
+                ), 0) AS schedule_paid
             FROM amortization_schedule a
             JOIN loans l ON a.loan_id = l.id
             JOIN clients cl ON l.client_id = cl.id
             WHERE 1 = 1
               {extra_where}
               AND l.status = 'active'
-              AND COALESCE((SELECT SUM(amount) FROM payments WHERE loan_id = l.id), 0) < (
-                    SELECT COALESCE(SUM(a2.total_due), 0)
-                    FROM amortization_schedule a2
-                    WHERE a2.loan_id = a.loan_id
-                      AND a2.month_number <= a.month_number
-              )
+              AND COALESCE((
+                    SELECT SUM(pa.amount)
+                    FROM payment_allocations pa
+                    JOIN payments p ON p.id = pa.payment_id
+                    WHERE pa.schedule_id = a.id
+                      AND p.voided_at IS NULL
+              ), 0) < a.total_due
             ORDER BY {order_by}
         """, tuple(params))
             rows = rows_to_list(c.fetchall())
@@ -913,9 +1065,9 @@ class Api:
             conn.close()
 
         for row in rows:
-            outstanding_for_schedule = max(0, row["cumulative_due"] - row["total_paid"])
+            outstanding_for_schedule = max(0, row["total_due"] - row["schedule_paid"])
             row["scheduled_total_due"] = row["total_due"]
-            row["total_due"] = round(min(row["total_due"], outstanding_for_schedule), 2)
+            row["total_due"] = round(outstanding_for_schedule, 2)
         return rows
 
     def get_collections_by_day_of_month(self, day_of_month):
@@ -955,20 +1107,21 @@ class Api:
             loan = c.fetchone()
             if not loan:
                 raise ValueError("Loan not found.")
-            total_due = loan['principal'] + loan['total_interest']
 
             c.execute("""
                 INSERT INTO payments (loan_id, amount, payment_date, payment_method, notes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (loan_id, amount, payment_date, method, notes, now))
             payment_id = c.lastrowid  # Capture IMMEDIATELY after INSERT before any SELECT
+            self._allocate_payment(c, loan_id, payment_id, amount)
 
-            # Check if loan is fully paid
-            c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ?", (loan_id,))
-            total_paid = c.fetchone()[0]
-
-            if total_paid >= total_due:
-                c.execute("UPDATE loans SET status = 'paid' WHERE id = ?", (loan_id,))
+            self._recompute_loan_status(c, loan_id)
+            self._audit_event(c, "payment_recorded", "payment", payment_id, {
+                "loan_id": loan_id,
+                "amount": amount,
+                "method": method,
+                "payment_date": payment_date
+            })
 
             conn.commit()
             app_logger.info("Payment recorded: payment_id=%s loan_id=%s amount=%.2f method=%s",
@@ -984,11 +1137,56 @@ class Api:
         finally:
             conn.close()
 
+    def void_payment(self, payment_id, reason=""):
+        """
+        Void a payment without deleting the original row.
+        Allocations stay linked but are ignored because the payment is voided.
+        """
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            payment_id = int(payment_id)
+            reason = str(reason or "").strip()
+            if len(reason) < 3:
+                return {"success": False, "error": "Void reason is required."}
+
+            c.execute("""
+                SELECT id, loan_id, amount, voided_at
+                FROM payments
+                WHERE id = ?
+            """, (payment_id,))
+            payment = c.fetchone()
+            if not payment:
+                return {"success": False, "error": "Payment not found."}
+            if payment["voided_at"]:
+                return {"success": False, "error": "Payment is already voided."}
+
+            now = datetime.now().isoformat()
+            c.execute("""
+                UPDATE payments
+                SET voided_at = ?, void_reason = ?
+                WHERE id = ?
+            """, (now, reason, payment_id))
+            self._recompute_loan_status(c, payment["loan_id"])
+            self._audit_event(c, "payment_voided", "payment", payment_id, {
+                "loan_id": payment["loan_id"],
+                "amount": payment["amount"],
+                "reason": reason
+            })
+            conn.commit()
+            return {"success": True}
+        except Exception as e:
+            conn.rollback()
+            app_logger.log_exception("void_payment", e)
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
+
     def get_payments(self, loan_id):
         """Get all payments for a loan."""
         conn = get_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM payments WHERE loan_id = ? ORDER BY payment_date DESC",
+        c.execute("SELECT * FROM payments WHERE loan_id = ? AND voided_at IS NULL ORDER BY payment_date DESC",
                   (loan_id,))
         result = rows_to_list(c.fetchall())
         conn.close()
@@ -1003,6 +1201,7 @@ class Api:
             FROM payments p
             JOIN loans l ON p.loan_id = l.id
             JOIN clients c ON l.client_id = c.id
+            WHERE p.voided_at IS NULL
             ORDER BY p.created_at DESC LIMIT ?
         """, (limit,))
         result = rows_to_list(c.fetchall())
@@ -1308,12 +1507,12 @@ class Api:
         total_due = loan['principal'] + loan['total_interest']
         monthly_payment = loan['monthly_payment'] or 0
 
-        c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ?",
+        c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL",
                   (int(loan_id),))
         paid = c.fetchone()[0]
 
         # Count discrete payment records (not amount-based)
-        c.execute("SELECT COUNT(*) FROM payments WHERE loan_id = ?", (int(loan_id),))
+        c.execute("SELECT COUNT(*) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (int(loan_id),))
         months_paid = c.fetchone()[0]
 
         remaining = max(0, total_due - paid)
@@ -1334,7 +1533,7 @@ class Api:
         c = conn.cursor()
         c.execute("""
             SELECT l.id, l.principal, l.total_interest, l.status,
-                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id) as total_paid
+                   (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) as total_paid
             FROM loans l WHERE l.client_id = ? AND l.status = 'active'
             ORDER BY l.created_at DESC LIMIT 1
         """, (client_id,))
@@ -1587,6 +1786,17 @@ class Api:
         """List all backups."""
         return list_backups()
 
+    def restore_backup(self, backup_name):
+        """Restore the active profile database from a named local backup."""
+        try:
+            result = restore_local_backup(backup_name)
+            init_database()
+            app_logger.warning("Profile database restored from backup: %s", backup_name)
+            return result
+        except Exception as e:
+            app_logger.log_exception("restore_backup", e)
+            return {"success": False, "error": str(e)}
+
     def is_online(self):
         """Check internet connectivity."""
         return check_internet()
@@ -1796,13 +2006,15 @@ class Api:
     # ═══════════════════════════════════════════════════════════════
 
     def set_profile_password(self, password):
-        """Set a password for protecting dangerous actions. Stored as SHA-256 hash."""
+        """Set a password for protecting dangerous actions."""
         try:
-            import hashlib
-            hashed = hashlib.sha256(password.encode('utf-8')).hexdigest()
+            password = str(password or "")
+            if len(password) < 8:
+                raise ValueError("Password must be at least 8 characters.")
+            encoded_hash = _hash_profile_password(password)
             conn = get_connection()
             c = conn.cursor()
-            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_password', ?)", (hashed,))
+            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_password', ?)", (encoded_hash,))
             c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('password_enabled', 'true')")
             conn.commit()
             conn.close()
@@ -1815,14 +2027,21 @@ class Api:
     def verify_profile_password(self, password):
         """Verify a password against the stored hash."""
         try:
-            import hashlib
-            hashed = hashlib.sha256(password.encode('utf-8')).hexdigest()
             conn = get_connection()
             c = conn.cursor()
             c.execute("SELECT value FROM settings WHERE key = 'profile_password'")
             row = c.fetchone()
+            stored_hash = row[0] if row else ""
+            valid, needs_upgrade = _verify_profile_password(password, stored_hash)
+            if valid and needs_upgrade:
+                c.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_password', ?)",
+                    (_hash_profile_password(password),)
+                )
+                conn.commit()
+                app_logger.info("Legacy profile password hash upgraded.")
             conn.close()
-            if row and row[0] == hashed:
+            if valid:
                 return {"success": True, "valid": True}
             return {"success": True, "valid": False}
         except Exception as e:
@@ -1891,7 +2110,7 @@ class Api:
                 SUM(a.total_due) AS total_due_so_far,
                 COALESCE((
                     SELECT SUM(amount)
-                    FROM payments WHERE loan_id = l.id
+                    FROM payments WHERE loan_id = l.id AND voided_at IS NULL
                 ), 0) AS total_paid
             FROM amortization_schedule a
             JOIN loans l ON a.loan_id = l.id
@@ -2194,6 +2413,27 @@ end tell
         except Exception as e:
             app_logger.log_exception("get_log_stats", e)
             return {"exists": False, "error": str(e)}
+
+    def get_audit_events(self, limit=100):
+        """Return recent business audit events."""
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("""
+                SELECT *
+                FROM audit_events
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+            """, (int(limit),))
+            events = rows_to_list(c.fetchall())
+            for event in events:
+                try:
+                    event["details"] = json.loads(event.get("details") or "{}")
+                except Exception:
+                    event["details"] = {}
+            return events
+        finally:
+            conn.close()
 
     def clear_logs(self):
         """Clear the current log file."""

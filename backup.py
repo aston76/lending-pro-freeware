@@ -7,6 +7,7 @@ import os
 import json
 import shutil
 import socket
+import sqlite3
 from datetime import datetime
 
 from database import (
@@ -35,7 +36,8 @@ def _export_json(output_path):
 
     # Export each table
     tables = ['clients', 'loans', 'amortization_schedule', 'payments',
-              'documents', 'referral_commissions', 'settings']
+              'payment_allocations', 'documents', 'referral_commissions',
+              'penalties', 'settings', 'schema_migrations', 'audit_events']
 
     for table in tables:
         cursor.execute(f"SELECT * FROM {table}")
@@ -49,6 +51,18 @@ def _export_json(output_path):
     return output_path
 
 
+def _backup_sqlite_database(output_path):
+    """Create a consistent SQLite copy, including data still held in WAL."""
+    source = get_connection()
+    target = sqlite3.connect(output_path)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+        source.close()
+    return output_path
+
+
 def backup_local():
     """
     Create a full local backup in 3 formats:
@@ -58,7 +72,7 @@ def backup_local():
 
     Returns dict with paths and status.
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_subdir = os.path.join(BACKUP_DIR, f"backup_{timestamp}")
     os.makedirs(backup_subdir, exist_ok=True)
 
@@ -66,9 +80,8 @@ def backup_local():
 
     # 1. Copy SQLite database
     try:
-        db_path = get_db_path()
         db_backup = os.path.join(backup_subdir, f"phlending_{timestamp}.db")
-        shutil.copy2(db_path, db_backup)
+        _backup_sqlite_database(db_backup)
         results["files"].append({"type": "db", "path": db_backup})
     except Exception as e:
         results["errors"].append(f"DB backup failed: {str(e)}")
@@ -141,6 +154,86 @@ def list_backups():
             })
 
     return backups
+
+
+def _resolve_backup_dir(backup_name):
+    """Return a backup directory only if it lives inside BACKUP_DIR."""
+    name = os.path.basename(str(backup_name or "").strip())
+    if not name.startswith("backup_"):
+        raise ValueError("Invalid backup name.")
+
+    base = os.path.realpath(BACKUP_DIR)
+    candidate = os.path.realpath(os.path.join(BACKUP_DIR, name))
+    if os.path.commonpath([base, candidate]) != base or not os.path.isdir(candidate):
+        raise ValueError("Backup folder not found.")
+    return candidate
+
+
+def _find_backup_db(backup_dir):
+    """Find the SQLite DB file inside a backup folder."""
+    db_files = [
+        f for f in os.listdir(backup_dir)
+        if f.lower().endswith(".db") and os.path.isfile(os.path.join(backup_dir, f))
+    ]
+    if not db_files:
+        raise ValueError("No SQLite database found in this backup.")
+    db_files.sort()
+    return os.path.join(backup_dir, db_files[0])
+
+
+def _validate_backup_db(db_path):
+    """Run a minimal integrity and schema check before restoring."""
+    conn = sqlite3.connect(db_path)
+    try:
+        integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        if integrity != "ok":
+            raise ValueError(f"Backup integrity check failed: {integrity}")
+
+        required_tables = {"clients", "loans", "payments", "settings"}
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+        table_names = {row[0] for row in rows}
+        missing = sorted(required_tables - table_names)
+        if missing:
+            raise ValueError(f"Backup is missing required tables: {', '.join(missing)}")
+    finally:
+        conn.close()
+
+
+def restore_local_backup(backup_name):
+    """
+    Restore the active profile database from a local backup.
+    A fresh safety backup is created before the active database is replaced.
+    """
+    backup_dir = _resolve_backup_dir(backup_name)
+    source_db = _find_backup_db(backup_dir)
+    _validate_backup_db(source_db)
+
+    safety_backup = backup_local()
+    if not safety_backup.get("success"):
+        errors = ", ".join(safety_backup.get("errors", [])) or "unknown error"
+        raise RuntimeError(f"Safety backup failed before restore: {errors}")
+
+    target_db = get_db_path()
+    for suffix in ("-wal", "-shm"):
+        sidecar = target_db + suffix
+        if os.path.exists(sidecar):
+            os.remove(sidecar)
+
+    shutil.copy2(source_db, target_db)
+
+    for suffix in ("-wal", "-shm"):
+        sidecar = target_db + suffix
+        if os.path.exists(sidecar):
+            os.remove(sidecar)
+
+    return {
+        "success": True,
+        "restored_from": backup_name,
+        "source_db": source_db,
+        "safety_backup": safety_backup
+    }
 
 
 # ── Google Drive Integration ─────────────────────────────────────

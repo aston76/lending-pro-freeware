@@ -98,7 +98,7 @@ def _add_summary_sheet(wb, conn, date_from=None, date_to=None):
     n_defaulted = c.fetchone()[0]
 
     # Payment stats
-    c.execute("SELECT COUNT(*), COALESCE(SUM(amount),0) FROM payments")
+    c.execute("SELECT COUNT(*), COALESCE(SUM(amount),0) FROM payments WHERE voided_at IS NULL")
     rp = c.fetchone()
     n_payments, total_collected = rp[0], rp[1]
 
@@ -212,7 +212,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         df = date_filter_clause('l.start_date')
         c.execute(f"""
             SELECT l.*, c.first_name, c.last_name,
-                   (SELECT COALESCE(SUM(amount),0) FROM payments WHERE loan_id=l.id) as total_paid
+                   (SELECT COALESCE(SUM(amount),0) FROM payments WHERE loan_id=l.id AND voided_at IS NULL) as total_paid
             FROM loans l JOIN clients c ON l.client_id = c.id
             WHERE 1=1{df}
             ORDER BY l.created_at DESC
@@ -242,7 +242,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
             FROM payments p
             JOIN loans l ON p.loan_id = l.id
             JOIN clients c ON l.client_id = c.id
-            WHERE 1=1{df}
+            WHERE p.voided_at IS NULL{df}
             ORDER BY p.payment_date DESC
         """)
         rows = []

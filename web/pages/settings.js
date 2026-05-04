@@ -7,6 +7,7 @@ const SettingsPage = {
         const content = document.getElementById('page-content');
         const settings = await App.api('get_settings');
         const backupInfo = await App.api('get_backup_info');
+        const backups = await App.api('get_backups_list');
         const driveSetup = await App.api('is_drive_setup');
         const appInfo = await App.api('get_app_info');
         const logo = await App.api('get_logo_base64');
@@ -435,12 +436,15 @@ const SettingsPage = {
                         <p class="text-xs text-gray-400 dark:text-slate-500 mb-4">Last backup: ${backupInfo.last_backup}</p>
                     ` : ''}
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <button onclick="SettingsPage.backupLocal()" class="btn btn-primary">
                             <i data-lucide="save" class="w-4 h-4"></i> Local Backup
                         </button>
                         <button onclick="SettingsPage.syncDrive()" class="btn ${driveSetup ? 'btn-success' : 'btn-ghost'}">
                             <i data-lucide="cloud-upload" class="w-4 h-4"></i> Sync to Drive
+                        </button>
+                        <button onclick="SettingsPage.showRestoreModal()" class="btn btn-ghost" ${backups.length === 0 ? 'disabled title="No backup available"' : ''}>
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Restore
                         </button>
                         <button onclick="SettingsPage.openDrive()" class="btn btn-ghost">
                             <i data-lucide="external-link" class="w-4 h-4"></i> ${driveSetup ? 'Open Drive' : 'Setup Drive'}
@@ -879,6 +883,77 @@ const SettingsPage = {
             UI.toast(`Backup saved! (${result.files.length} files)`, 'success');
         } else {
             UI.toast('Backup had errors: ' + result.errors.join(', '), 'warning');
+        }
+    },
+
+    async showRestoreModal() {
+        const backups = await App.api('get_backups_list');
+        if (!backups || backups.length === 0) {
+            UI.toast('No local backup available.', 'warning');
+            return;
+        }
+
+        UI.showModal('Restore Backup', `
+            <div class="space-y-4">
+                <div class="p-3 rounded-xl" style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.22);">
+                    <p class="text-sm font-semibold" style="color:var(--apple-orange)">This replaces the current profile database.</p>
+                    <p class="text-xs mt-1" style="color:var(--text-secondary)">A fresh safety backup is created automatically before restore. Media files are not changed.</p>
+                </div>
+                <div>
+                    <label class="text-xs font-medium mb-1.5 block" style="color:var(--text-secondary)">Backup</label>
+                    <select id="restore-backup-select" class="input select">
+                        ${backups.map(b => `
+                            <option value="${b.name}">${b.timestamp} · ${b.size_mb} MB</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium mb-1.5 block" style="color:var(--text-secondary)">
+                        Type <code style="background:var(--surface-2); padding:2px 6px; border-radius:4px; font-weight:700; color:var(--apple-orange)">RESTORE</code> to confirm
+                    </label>
+                    <input id="restore-confirm-input" class="input font-mono text-center text-lg tracking-widest"
+                           placeholder="Type RESTORE here" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="flex gap-3 justify-end pt-2" style="border-top:0.5px solid var(--surface-2);">
+                    <button onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button>
+                    <button id="restore-confirm-btn" disabled onclick="SettingsPage._executeRestore()" class="btn"
+                            style="background:var(--apple-orange); color:white; opacity:0.5;">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Restore Backup
+                    </button>
+                </div>
+            </div>
+        `, { width: 'max-w-md' });
+        lucide.createIcons();
+
+        const input = document.getElementById('restore-confirm-input');
+        const btn = document.getElementById('restore-confirm-btn');
+        if (input && btn) {
+            input.addEventListener('input', () => {
+                btn.disabled = input.value !== 'RESTORE';
+                btn.style.opacity = input.value === 'RESTORE' ? '0.9' : '0.5';
+            });
+            input.focus();
+        }
+    },
+
+    async _executeRestore() {
+        const select = document.getElementById('restore-backup-select');
+        const input = document.getElementById('restore-confirm-input');
+        if (!select || !input || input.value !== 'RESTORE') {
+            UI.toast('You must type RESTORE to confirm.', 'warning');
+            return;
+        }
+
+        UI.closeModal();
+        UI.toast('Restoring backup…', 'info');
+        const result = await App.api('restore_backup', select.value);
+        if (result.success) {
+            SoundEngine.success();
+            UI.toast('Backup restored. Reloading dashboard…', 'success');
+            await App.refreshAlertsBadge();
+            App.navigate('dashboard');
+        } else {
+            UI.toast('Restore failed: ' + (result.error || 'Unknown error'), 'error');
         }
     },
 
@@ -1399,8 +1474,8 @@ const SettingsPage = {
     async _savePassword() {
         const pw = document.getElementById('new-pw-input')?.value;
         const confirm = document.getElementById('new-pw-confirm')?.value;
-        if (!pw || pw.length < 3) {
-            UI.toast('Password must be at least 3 characters.', 'warning');
+        if (!pw || pw.length < 8) {
+            UI.toast('Password must be at least 8 characters.', 'warning');
             return;
         }
         if (pw !== confirm) {

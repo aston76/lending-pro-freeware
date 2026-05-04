@@ -280,7 +280,7 @@ def generate_receipt_pdf(payment_id, output_path=None):
     cursor = conn.cursor()
 
     # Get payment
-    cursor.execute("SELECT * FROM payments WHERE id = ?", (payment_id,))
+    cursor.execute("SELECT * FROM payments WHERE id = ? AND voided_at IS NULL", (payment_id,))
     payment = dict_from_row(cursor.fetchone())
     if not payment:
         conn.close()
@@ -296,7 +296,7 @@ def generate_receipt_pdf(payment_id, output_path=None):
 
     # Get total paid
     cursor.execute(
-        "SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE loan_id = ?",
+        "SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE loan_id = ? AND voided_at IS NULL",
         (payment['loan_id'],)
     )
     total_paid = cursor.fetchone()['total_paid']
@@ -431,7 +431,7 @@ def generate_amortization_pdf(loan_id, output_path=None):
     schedule = rows_to_list(cursor.fetchall())
 
     cursor.execute(
-        "SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE loan_id = ?",
+        "SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE loan_id = ? AND voided_at IS NULL",
         (loan_id,)
     )
     total_paid_row = cursor.fetchone()
@@ -641,4 +641,3 @@ def generate_amortization_pdf(loan_id, output_path=None):
     pdf_bytes = buffer.getvalue()
     buffer.close()
     return base64.b64encode(pdf_bytes).decode('utf-8')
-

@@ -180,12 +180,12 @@ def reset_profile_data():
     conn = get_connection()
     c = conn.cursor()
     # Delete in FK-safe order
-    for table in ['referral_commissions', 'penalties', 'payments',
+    for table in ['payment_allocations', 'referral_commissions', 'penalties', 'payments',
                   'amortization_schedule', 'documents', 'loans', 'clients']:
         c.execute(f"DELETE FROM {table}")
     # Reset auto-increment
     c.execute("DELETE FROM sqlite_sequence WHERE name IN "
-              "('loans','payments','amortization_schedule','penalties','documents','referral_commissions')")
+              "('loans','payments','amortization_schedule','penalties','documents','referral_commissions','payment_allocations')")
     conn.commit()
     conn.close()
     return True
@@ -327,8 +327,24 @@ def init_database():
             payment_method  TEXT NOT NULL DEFAULT 'cash'
                             CHECK(payment_method IN ('cash', 'gcash', 'bank_transfer', 'check')),
             notes           TEXT DEFAULT '',
+            voided_at       TEXT DEFAULT NULL,
+            void_reason     TEXT DEFAULT '',
             created_at      TEXT NOT NULL,
             FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ── Payment Allocations ──────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payment_allocations (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            payment_id      INTEGER NOT NULL,
+            schedule_id     INTEGER NOT NULL,
+            amount          REAL NOT NULL,
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (payment_id)  REFERENCES payments(id) ON DELETE CASCADE,
+            FOREIGN KEY (schedule_id) REFERENCES amortization_schedule(id) ON DELETE CASCADE,
+            UNIQUE(payment_id, schedule_id)
         )
     """)
 
@@ -389,6 +405,26 @@ def init_database():
         )
     """)
 
+    # ── Schema Migrations ────────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version     TEXT PRIMARY KEY,
+            applied_at  TEXT NOT NULL
+        )
+    """)
+
+    # ── Audit Trail ──────────────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type   TEXT NOT NULL,
+            entity_type  TEXT NOT NULL,
+            entity_id    TEXT DEFAULT '',
+            details      TEXT DEFAULT '{}',
+            created_at   TEXT NOT NULL
+        )
+    """)
+
     # ── Default settings ─────────────────────────────────────────
     defaults = {
         "commission_rate": "2.0",
@@ -413,7 +449,7 @@ def init_database():
     # Older DBs allowed only "bank"; the UI now exposes bank_transfer and check.
     cursor.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'payments'")
     payments_sql = (cursor.fetchone() or [None])[0] or ""
-    if "payment_method IN ('cash', 'gcash', 'bank')" in payments_sql:
+    if "'bank'" in payments_sql and "bank_transfer" not in payments_sql:
         cursor.execute("ALTER TABLE payments RENAME TO payments_legacy")
         cursor.execute("""
             CREATE TABLE payments (
@@ -424,15 +460,17 @@ def init_database():
                 payment_method  TEXT NOT NULL DEFAULT 'cash'
                                 CHECK(payment_method IN ('cash', 'gcash', 'bank_transfer', 'check')),
                 notes           TEXT DEFAULT '',
+                voided_at       TEXT DEFAULT NULL,
+                void_reason     TEXT DEFAULT '',
                 created_at      TEXT NOT NULL,
                 FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE
             )
         """)
         cursor.execute("""
-            INSERT INTO payments (id, loan_id, amount, payment_date, payment_method, notes, created_at)
+            INSERT INTO payments (id, loan_id, amount, payment_date, payment_method, notes, voided_at, void_reason, created_at)
             SELECT id, loan_id, amount, payment_date,
                    CASE payment_method WHEN 'bank' THEN 'bank_transfer' ELSE payment_method END,
-                   notes, created_at
+                   notes, NULL, '', created_at
             FROM payments_legacy
         """)
         cursor.execute("DROP TABLE payments_legacy")
@@ -442,10 +480,14 @@ def init_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_amort_loan ON amortization_schedule(loan_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_loan ON payments(loan_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_voided ON payments(voided_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_alloc_payment ON payment_allocations(payment_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_alloc_schedule ON payment_allocations(schedule_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_client ON documents(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_amort_due ON amortization_schedule(due_date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_penalties_loan ON penalties(loan_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_penalties_client ON penalties(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at)")
 
     # ── Safe migrations (add new columns to existing DBs) ────────
     migrations = [
@@ -455,6 +497,8 @@ def init_database():
         ("clients",  "social_media",      "ALTER TABLE clients ADD COLUMN social_media TEXT DEFAULT '[]'"),
         ("loans",    "original_loan_id",  "ALTER TABLE loans ADD COLUMN original_loan_id INTEGER DEFAULT NULL"),
         ("loans",    "rollover_amount",   "ALTER TABLE loans ADD COLUMN rollover_amount REAL DEFAULT 0"),
+        ("payments", "voided_at",         "ALTER TABLE payments ADD COLUMN voided_at TEXT DEFAULT NULL"),
+        ("payments", "void_reason",       "ALTER TABLE payments ADD COLUMN void_reason TEXT DEFAULT ''"),
     ]
     for table, column, sql in migrations:
         try:
@@ -467,6 +511,68 @@ def init_database():
 
     # Extend loans status constraint safely (SQLite doesn't support ALTER CONSTRAINT)
     # The CHECK is advisory; new statuses will work fine in practice with SQLite.
+
+    # Backfill allocation rows for existing payments once. New payments are
+    # allocated by the API transaction that records them.
+    cursor.execute("SELECT COUNT(*) FROM payment_allocations")
+    allocation_count = cursor.fetchone()[0]
+    if allocation_count == 0:
+        cursor.execute("""
+            SELECT id, loan_id, amount, created_at
+            FROM payments
+            WHERE voided_at IS NULL
+            ORDER BY loan_id, payment_date, id
+        """)
+        existing_payments = cursor.fetchall()
+        for payment in existing_payments:
+            remaining_amount = round(float(payment["amount"]), 2)
+            if remaining_amount <= 0:
+                continue
+            cursor.execute("""
+                SELECT
+                    a.id,
+                    a.total_due,
+                    COALESCE((
+                        SELECT SUM(pa.amount)
+                        FROM payment_allocations pa
+                        JOIN payments p ON p.id = pa.payment_id
+                        WHERE pa.schedule_id = a.id
+                          AND p.voided_at IS NULL
+                    ), 0) AS already_allocated
+                FROM amortization_schedule a
+                WHERE a.loan_id = ?
+                ORDER BY a.month_number ASC
+            """, (payment["loan_id"],))
+            for schedule in cursor.fetchall():
+                if remaining_amount <= 0:
+                    break
+                open_amount = round(schedule["total_due"] - schedule["already_allocated"], 2)
+                if open_amount <= 0:
+                    continue
+                allocated = min(remaining_amount, open_amount)
+                cursor.execute("""
+                    INSERT OR IGNORE INTO payment_allocations
+                        (payment_id, schedule_id, amount, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    payment["id"],
+                    schedule["id"],
+                    round(allocated, 2),
+                    payment["created_at"] or datetime.now().isoformat()
+                ))
+                remaining_amount = round(remaining_amount - allocated, 2)
+
+    applied_at = datetime.now().isoformat()
+    for version in [
+        "20260504_payment_methods",
+        "20260504_payment_allocations",
+        "20260504_audit_events",
+        "20260504_void_payments",
+    ]:
+        cursor.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (version, applied_at)
+        )
 
     conn.commit()
     conn.close()

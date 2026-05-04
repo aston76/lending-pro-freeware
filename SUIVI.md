@@ -20,13 +20,20 @@ Ce document récapitule l'état d'avancement des fonctionnalités demandées.
 | 14 | **Verrou de Renouvellement (3 mois)** | ✅ | Blocage automatique si < 3 paiements effectués sur le prêt en cours. |
 | 15 | **Bouton Paiement Rapide (Quick Pay)** | ✅ | Ajout d'un bouton +Pay directement dans la fiche client pour chaque prêt actif. |
 | 16 | **Stabilisation paiements / collections** | ✅ | Validation backend, rollback SQLite, méthodes `bank_transfer`/`check`, et masquage des échéances déjà couvertes par les paiements. |
+| 17 | **Allocations de paiement** | ✅ | Chaque paiement est affecté aux plus anciennes échéances impayées pour gérer les paiements partiels proprement. |
+| 18 | **Annulation de paiement** | ✅ | Les paiements peuvent être annulés avec motif sans supprimer l'historique ni casser les reçus existants. |
+| 19 | **Audit métier** | ✅ | Journal DB pour créations/modifications clients, prêts, paiements, extensions et annulations. |
+| 20 | **Sauvegarde / restauration** | ✅ | Backup SQLite cohérent via API SQLite, export JSON complet, restauration locale avec backup de sécurité automatique. |
+| 21 | **Sécurité mot de passe** | ✅ | Hash PBKDF2-SHA256 avec migration automatique des anciens hashes SHA-256. |
+| 22 | **Runtime offline + CI** | ✅ | Assets Tailwind/Lucide/Leaflet en local, tests Pytest ciblés, script `npm run check`, workflow GitHub Actions. |
 
 ## Synthèse Technique
-- **Base de données** : Schéma `clients` mis à jour (email, address_detail).
-- **Backend (API)** : Logique de renouvellement inversée dans `api.py` (`renewal_mode`).
-- **Frontend** : Refonte de `client_detail.js` (formulaires, bannières, boutons rapides) et `help.js`.
+- **Base de données** : Schéma `clients` mis à jour (email, address_detail), tables `payment_allocations`, `audit_events`, `schema_migrations`, colonnes `voided_at` / `void_reason` sur `payments`.
+- **Backend (API)** : Logique de renouvellement inversée dans `api.py` (`renewal_mode`), allocation automatique des paiements, annulation non destructive, audit transactionnel, restauration de backup contrôlée.
+- **Frontend** : Refonte de `client_detail.js` (formulaires, bannières, boutons rapides), aide mise à jour, boutons d'annulation de paiement, restauration de backup dans Settings.
 - **Packaging** : Script `create_windows_zip.sh` mis à jour pour inclure ce suivi.
-- **Stabilité runtime** : Les erreurs de formulaire prêt/paiement retournent maintenant un message propre sans verrouiller SQLite. Les collections utilisent le cumul payé pour ne plus afficher une échéance déjà réglée.
+- **Stabilité runtime** : Les erreurs de formulaire prêt/paiement retournent maintenant un message propre sans verrouiller SQLite. Les collections utilisent les allocations de paiement pour masquer uniquement les échéances réellement réglées.
+- **Qualité** : `scripts/check_project.py` vérifie Python + JavaScript, `tests/test_core_workflows.py` couvre paiements partiels, annulation, migration DB, mot de passe et restauration backup.
 
 ### 🪟 Notes Techniques Spécifiques à Windows
 Pour assurer une compatibilité parfaite sur Windows (souvent différente de macOS) :
