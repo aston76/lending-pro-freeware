@@ -1,60 +1,110 @@
 #!/usr/bin/env python3
-"""
-PH-Lending Pro — macOS App Launcher Creator
-Crée un vrai .app macOS qui démarre tout en double-cliquant.
-Rapide : pas besoin de PyInstaller.
-"""
+"""Build a self-contained macOS launcher for PH-Lending Pro."""
+
 import os
+import shutil
 import stat
 import subprocess
-import shutil
+import sys
+
 
 APP_NAME = "PH-Lending Pro"
-# Chemin du projet (si lancé depuis le dossier du projet, on récupère automatiquement)
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-VENV_PYTHON = os.path.join(PROJECT_DIR, "venv", "bin", "python3")
+APP_DEST = os.path.expanduser(f"~/Applications/{APP_NAME}.app")
+RUNTIME_DIR = os.path.expanduser("~/Library/Application Support/PH-Lending/runtime")
+RUNTIME_PYTHON = os.path.join(RUNTIME_DIR, "bin", "python")
 ICNS_PATH = os.path.join(PROJECT_DIR, "icon.icns")
+REQUIREMENTS_PATH = os.path.join(PROJECT_DIR, "requirements.txt")
 
-# On place le .app dans le dossier du projet (ou changez ici vers /Applications)
-APP_DEST = os.path.join(PROJECT_DIR, f"{APP_NAME}.app")
+APP_PYTHON_FILES = [
+    "api.py",
+    "backup.py",
+    "database.py",
+    "demo_generator.py",
+    "excel_export.py",
+    "loan_engine.py",
+    "logger.py",
+    "main.py",
+    "pdf_generator.py",
+]
+
+
+def ensure_runtime():
+    """Create a local runtime that Finder can access without external-volume TCC."""
+    runtime_ok = False
+    if os.path.exists(RUNTIME_PYTHON):
+        check = subprocess.run(
+            [RUNTIME_PYTHON, "-c", "import webview, openpyxl, reportlab, dateutil"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        runtime_ok = check.returncode == 0
+    if runtime_ok:
+        return
+
+    os.makedirs(os.path.dirname(RUNTIME_DIR), exist_ok=True)
+    subprocess.run([sys.executable, "-m", "venv", RUNTIME_DIR], check=True)
+    subprocess.run(
+        [RUNTIME_PYTHON, "-m", "pip", "install", "--upgrade", "pip"],
+        check=True,
+    )
+    subprocess.run(
+        [RUNTIME_PYTHON, "-m", "pip", "install", "-r", REQUIREMENTS_PATH],
+        check=True,
+    )
+
+
+def copy_application_code(resources_dir):
+    """Copy only runtime files into the application bundle."""
+    app_code_dir = os.path.join(resources_dir, "app")
+    if os.path.exists(app_code_dir):
+        shutil.rmtree(app_code_dir)
+    os.makedirs(app_code_dir, exist_ok=True)
+
+    for file_name in APP_PYTHON_FILES:
+        shutil.copy2(os.path.join(PROJECT_DIR, file_name), app_code_dir)
+    shutil.copy2(REQUIREMENTS_PATH, app_code_dir)
+    shutil.copytree(
+        os.path.join(PROJECT_DIR, "web"),
+        os.path.join(app_code_dir, "web"),
+        ignore=shutil.ignore_patterns(".DS_Store"),
+    )
 
 
 def create_app():
-    print(f"📦 Création de {APP_NAME}.app...")
+    print(f"Building {APP_NAME}.app...")
+    ensure_runtime()
 
-    # 1. Structure du bundle
     macos_dir = os.path.join(APP_DEST, "Contents", "MacOS")
     resources_dir = os.path.join(APP_DEST, "Contents", "Resources")
     os.makedirs(macos_dir, exist_ok=True)
     os.makedirs(resources_dir, exist_ok=True)
+    copy_application_code(resources_dir)
 
-    # 2. Script de lancement
     launcher_path = os.path.join(macos_dir, APP_NAME)
-    python_bin = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python3"
-
-    launcher_content = f"""#!/bin/bash
-# PH-Lending Pro — Launcher
-cd "{PROJECT_DIR}"
-
-# Utilise le venv si dispo, sinon python3 système
-if [ -f "{VENV_PYTHON}" ]; then
-    PYTHON="{VENV_PYTHON}"
-else
-    PYTHON=$(which python3)
-fi
-
-# Lance l'application (redirige logs vers ~/Library/Logs/PH-Lending.log)
+    launcher_content = """#!/bin/bash
+APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP_CODE="$APP_ROOT/Resources/app"
+PYTHON="$HOME/Library/Application Support/PH-Lending/runtime/bin/python"
 LOG_DIR="$HOME/Library/Logs"
 mkdir -p "$LOG_DIR"
-exec "$PYTHON" main.py >> "$LOG_DIR/PH-Lending.log" 2>&1
+
+if [ ! -x "$PYTHON" ]; then
+    echo "PH-Lending local runtime is missing. Run create_app_launcher.py again." >> "$LOG_DIR/PH-Lending.log"
+    exit 1
+fi
+
+cd "$APP_CODE" || exit 1
+exec "$PYTHON" "$APP_CODE/main.py" >> "$LOG_DIR/PH-Lending.log" 2>&1
 """
-    with open(launcher_path, "w") as f:
-        f.write(launcher_content)
+    with open(launcher_path, "w", encoding="utf-8") as launcher:
+        launcher.write(launcher_content)
+    os.chmod(
+        launcher_path,
+        stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH,
+    )
 
-    # Rendre exécutable
-    os.chmod(launcher_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
-
-    # 3. Info.plist
     plist_path = os.path.join(APP_DEST, "Contents", "Info.plist")
     plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -76,46 +126,35 @@ exec "$PYTHON" main.py >> "$LOG_DIR/PH-Lending.log" 2>&1
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.1.0</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.14</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSCameraUsageDescription</key>
-    <string>PH-Lending Pro needs camera access to capture client photos.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>PH-Lending Pro needs microphone access for video calls.</string>
+    <string>PH-Lending Pro uses the camera to capture client photos.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>PH-Lending Pro needs photo library access to import documents.</string>
+    <string>PH-Lending Pro imports client documents selected by the user.</string>
 </dict>
 </plist>
 """
-    with open(plist_path, "w") as f:
-        f.write(plist_content)
+    with open(plist_path, "w", encoding="utf-8") as plist:
+        plist.write(plist_content)
 
-    # 4. Copie l'icône
     if os.path.exists(ICNS_PATH):
-        dest_icns = os.path.join(resources_dir, "icon.icns")
-        shutil.copy2(ICNS_PATH, dest_icns)
-        print(f"🎨 Icône copiée")
-    else:
-        print("⚠️  icon.icns non trouvé — l'app utilisera une icône générique")
-        print("   Lancez d'abord: python3 generate_icon.py")
+        shutil.copy2(ICNS_PATH, os.path.join(resources_dir, "icon.icns"))
 
-    # 5. Forcer macOS à reconnaître le bundle
-    subprocess.run(["touch", APP_DEST], check=False)
     subprocess.run(["xattr", "-cr", APP_DEST], check=False)
-
-    print(f"\n✅ Terminé !")
-    print(f"📁 App créée : {APP_DEST}")
-    print(f"\n👉 Double-cliquez sur \"{APP_NAME}.app\" pour lancer l'application")
-    print(f"   Ou copiez-la dans /Applications/ pour un accès permanent :\n")
-    print(f'   cp -r "{APP_DEST}" /Applications/')
-
-    # Ouvrir le dossier dans Finder
-    subprocess.run(["open", PROJECT_DIR], check=False)
+    subprocess.run(
+        ["codesign", "--force", "--deep", "--sign", "-", APP_DEST],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(["touch", APP_DEST], check=False)
+    print(f"Application installed: {APP_DEST}")
 
 
 if __name__ == "__main__":

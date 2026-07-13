@@ -516,11 +516,11 @@ const CalendarPage = {
         }
 
         if (success > 0) {
-            UI.toast(`✅ ${success} payment${success > 1 ? 's' : ''} recorded successfully!`, 'success');
+            UI.toast(`${success} payment${success > 1 ? 's' : ''} recorded successfully.`, 'success');
             SoundEngine.success();
         }
         if (errors > 0) {
-            UI.toast(`⚠️ ${errors} payment${errors > 1 ? 's' : ''} failed`, 'warning');
+            UI.toast(`${errors} payment${errors > 1 ? 's' : ''} failed.`, 'warning');
         }
 
         // Refresh

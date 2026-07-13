@@ -179,10 +179,15 @@ def generate_contract_pdf(loan_id, output_path=None):
     # Loan details
     elements.append(Paragraph("LOAN DETAILS", styles['SectionHeader']))
     interest_label = "Fixed" if loan['interest_type'] == 'fixed' else "Declining Balance"
+    term_rate = float(loan['interest_rate'])
+    original_term = int(loan.get('original_term_months') or loan['term_months'])
+    monthly_rate = term_rate / max(original_term, 1)
+    total_repayment = float(loan['principal']) + float(loan['total_interest'])
     loan_data = [
-        ["Principal Amount:", f"₱ {loan['principal']:,.2f}", "Interest Rate:", f"{loan['interest_rate']}%"],
-        ["Interest Type:", interest_label, "Term:", f"{loan['term_months']} months"],
-        ["Monthly Payment:", f"₱ {loan['monthly_payment']:,.2f}", "Total Interest:", f"₱ {loan['total_interest']:,.2f}"],
+        ["Principal Amount:", f"₱ {loan['principal']:,.2f}", "Monthly Rate:", f"{monthly_rate:.2f}%"],
+        ["Interest Type:", interest_label, "Term Rate:", f"{term_rate:.2f}%"],
+        ["Term:", f"{loan['term_months']} months", "Monthly Payment:", f"₱ {loan['monthly_payment']:,.2f}"],
+        ["Total Interest:", f"₱ {loan['total_interest']:,.2f}", "Total Repayment:", f"₱ {total_repayment:,.2f}"],
         ["Start Date:", loan['start_date'], "Status:", loan['status'].upper()],
     ]
     loan_table = Table(loan_data, colWidths=[100, 130, 100, 130])
@@ -477,6 +482,9 @@ def generate_amortization_pdf(loan_id, output_path=None):
 
     # ─── Loan Summary ─────────────────────────────────────────────
     interest_label = "Fixed Rate" if loan['interest_type'] == 'fixed' else "Declining Balance"
+    term_rate = float(loan['interest_rate'])
+    original_term = int(loan.get('original_term_months') or loan['term_months'])
+    monthly_rate = term_rate / max(original_term, 1)
     pct_paid = (total_paid / total_due_loan * 100) if total_due_loan > 0 else 0
 
     summary_data = [
@@ -490,7 +498,13 @@ def generate_amortization_pdf(loan_id, output_path=None):
             Paragraph("<b>Principal:</b>", styles['FieldLabel']),
             Paragraph(f"<b>₱ {loan['principal']:,.2f}</b>", styles['FieldValue']),
             Paragraph("<b>Interest Type:</b>", styles['FieldLabel']),
-            Paragraph(f"<b>{interest_label} — {loan['interest_rate']}%</b>", styles['FieldValue']),
+            Paragraph(f"<b>{interest_label}</b>", styles['FieldValue']),
+        ],
+        [
+            Paragraph("<b>Monthly Rate:</b>", styles['FieldLabel']),
+            Paragraph(f"<b>{monthly_rate:.2f}%</b>", styles['FieldValue']),
+            Paragraph("<b>Term Rate:</b>", styles['FieldLabel']),
+            Paragraph(f"<b>{term_rate:.2f}%</b>", styles['FieldValue']),
         ],
         [
             Paragraph("<b>Total Due:</b>", styles['FieldLabel']),
@@ -628,7 +642,7 @@ def generate_amortization_pdf(loan_id, output_path=None):
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#e2e8f0')))
     elements.append(Spacer(1, 2*mm))
     elements.append(Paragraph(
-        f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} — PH-Lending Pro",
+        f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} - PH-Lending Pro",
         styles['SmallText']
     ))
 

@@ -62,7 +62,7 @@ const ClientsPage = {
                                 </td>
                                 <td>
                                     <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                                             ${c.first_name[0]}${c.last_name[0]}
                                         </div>
                                         <div>
@@ -163,9 +163,15 @@ const ClientsPage = {
                         </select>
                     </div>
                 </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Email</label>
-                    <input name="email" type="email" class="input" placeholder="juan@example.com">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Email</label>
+                        <input name="email" type="email" class="input" placeholder="juan@example.com">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
+                        <input name="monthly_income" type="number" class="input" min="0" step="100" placeholder="0">
+                    </div>
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Referred By</label>
@@ -199,11 +205,16 @@ const ClientsPage = {
             address_detail: form.address_detail?.value || '',
             contact: rawContact ? '+63 ' + rawContact : '',
             email: form.email.value || '',
+            monthly_income: parseFloat(form.monthly_income.value) || 0,
             rating: parseInt(form.rating.value),
             referred_by: form.referred_by.value || null,
             notes: form.notes.value
         };
         const id = await App.api('create_client', data);
+        if (!id || id.success === false) {
+            UI.toast(id?.error || 'Could not create client.', 'error');
+            return;
+        }
         UI.closeModal();
         UI.toast(`Client ${id} created successfully!`, 'success');
         if (App.currentPage === 'clients') await this.loadClients();
@@ -268,9 +279,15 @@ const ClientsPage = {
                         </select>
                     </div>
                 </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Email</label>
-                    <input name="email" type="email" class="input" placeholder="juan@example.com" value="${client.email || ''}">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Email</label>
+                        <input name="email" type="email" class="input" placeholder="juan@example.com" value="${client.email || ''}">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
+                        <input name="monthly_income" type="number" class="input" min="0" step="100" value="${client.monthly_income || ''}" placeholder="0">
+                    </div>
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Referred By</label>
@@ -304,6 +321,7 @@ const ClientsPage = {
             address_detail: form.address_detail?.value || '',
             contact: rawContact ? '+63 ' + rawContact : '',
             email: form.email.value || '',
+            monthly_income: parseFloat(form.monthly_income.value) || 0,
             rating: parseInt(form.rating.value),
             referred_by: form.referred_by.value || null,
             notes: form.notes.value
@@ -423,7 +441,7 @@ const ClientsPage = {
                 });
 
             } catch (err) {
-                results.innerHTML = '<div class="px-4 py-3 text-xs text-red-400">⚠️ Could not reach OpenStreetMap. Check your internet.</div>';
+                results.innerHTML = '<div class="px-4 py-3 text-xs text-red-400">Could not reach OpenStreetMap. Check your internet connection.</div>';
             }
         }, 450);
     },

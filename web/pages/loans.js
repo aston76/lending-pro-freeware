@@ -81,7 +81,7 @@ const LoansPage = {
                                 <td><span class="font-semibold text-sm">${UI.formatCurrency(l.principal)}</span></td>
                                 <td>
                                     <div class="flex flex-col gap-0.5">
-                                        <span class="text-sm font-semibold">${(l.interest_rate / l.term_months).toFixed(2)}%<span class="text-xs font-normal text-gray-400 dark:text-slate-500">/mo</span></span>
+                                        <span class="text-sm font-semibold">${(l.interest_rate / (l.original_term_months || l.term_months)).toFixed(2)}%<span class="text-xs font-normal text-gray-400 dark:text-slate-500">/mo</span></span>
                                         <span class="text-xs px-1.5 py-0.5 rounded-md inline-block w-fit font-medium ${l.interest_type === 'fixed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'}">${l.interest_type === 'fixed' ? 'Fixed' : 'Declining'}</span>
                                     </div>
                                 </td>
@@ -161,7 +161,7 @@ const LoansPage = {
         if (searchInput) searchInput.value = name;
         if (results) results.classList.add('hidden');
         if (display) {
-            display.textContent = `✅ Selected: ${name} (${id})`;
+            display.textContent = `Selected: ${name} (${id})`;
             display.className = 'text-xs mt-1 text-green-600 dark:text-green-400 font-medium';
         }
         SoundEngine.click();
@@ -310,6 +310,10 @@ const LoansPage = {
         try {
             const preview = await App.api('calculate_loan_preview', principal, rate, type, term);
             const el = document.getElementById('loan-preview');
+            if (!preview || preview.success === false) {
+                el?.classList.add('hidden');
+                return;
+            }
             el.classList.remove('hidden');
             document.getElementById('preview-monthly').textContent = UI.formatCurrency(preview.monthly_payment);
             document.getElementById('preview-interest').textContent = UI.formatCurrency(preview.total_interest);

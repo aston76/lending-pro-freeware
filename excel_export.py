@@ -204,8 +204,8 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     # ── Loans ─────────────────────────────────────────────────────
     if 'loans' in sheets:
         ws = wb.create_sheet('Loans')
-        headers = ["Loan ID", "Client ID", "Client Name", "Principal (₱)", "Rate %",
-                   "Type", "Term (mo)", "Start Date", "Status",
+        headers = ["Loan ID", "Client ID", "Client Name", "Principal (₱)",
+                   "Monthly Rate %", "Term Rate %", "Type", "Term (mo)", "Start Date", "Status",
                    "Total Interest (₱)", "Monthly Payment (₱)",
                    "Total Paid (₱)", "Remaining (₱)", "Created"]
         _style_header(ws, headers)
@@ -222,7 +222,8 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
             remaining = round(l['principal'] + l['total_interest'] - l['total_paid'], 2)
             rows.append([
                 l['id'], l['client_id'], f"{l['first_name']} {l['last_name']}",
-                l['principal'], l['interest_rate'], l['interest_type'],
+                l['principal'], round(l['interest_rate'] / max(l['original_term_months'] or l['term_months'], 1), 4),
+                l['interest_rate'], l['interest_type'],
                 l['term_months'], l['start_date'], l['status'],
                 l['total_interest'], l['monthly_payment'],
                 round(l['total_paid'], 2), remaining, l['created_at']

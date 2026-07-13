@@ -16,10 +16,10 @@ const DashboardPage = {
 
         content.innerHTML = `
             <!-- Stats Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger">
+            <div class="dashboard-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger">
                 ${UI.statCard('banknote', 'Active Capital', UI.formatCurrency(stats.active_capital), 'blue', `${stats.active_loans} active loans`)}
-                ${UI.statCard('trending-up', 'Interest Collected', UI.formatCurrency(stats.interest_collected), 'green', `of ${UI.formatCurrency(stats.total_expected_interest)} expected`)}
-                ${UI.statCard('alert-triangle', 'Delinquency Rate', stats.delinquency_rate + '%', 'red', `${stats.defaulted_loans} defaulted loans`)}
+                ${UI.statCard('trending-up', 'Interest Collected', UI.formatCurrency(stats.interest_collected), 'green', `from ${UI.formatCurrency(stats.total_collected)} received`)}
+                ${UI.statCard('alert-triangle', 'Default Rate', stats.delinquency_rate + '%', 'red', `${stats.defaulted_loans} defaulted loans`)}
                 ${UI.statCard('users', 'Total Clients', stats.client_count, 'purple', `${stats.active_loans} active borrowers`)}
             </div>
 
@@ -58,7 +58,7 @@ const DashboardPage = {
                              style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.15);">
                             <div class="w-1.5 h-1.5 rounded-full" style="background:#FF3B30"></div>
                             <span style="color:var(--text-primary)">${a.first_name} ${a.last_name}</span>
-                            <span style="color:#FF3B30; font-weight:600">${a.days_overdue}j</span>
+                            <span style="color:#FF3B30; font-weight:600">${a.days_overdue}d</span>
                         </div>
                     `).join('')}
                     ${overdueAlerts.filter(a => a.severity === 'critical' || a.severity === 'high').length > 4 ?
@@ -66,7 +66,7 @@ const DashboardPage = {
                 </div>` : ''}
             </div>` : ''}
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="dashboard-main-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Today's Collections -->
                 <div class="lg:col-span-2 glass-card p-5">
                     <div class="flex items-center justify-between mb-4">
@@ -93,7 +93,7 @@ const DashboardPage = {
                                 <div class="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 dark:bg-slate-800/50 hover:bg-gray-100/50 dark:hover:bg-slate-700/50 transition cursor-pointer"
                                      onclick="App.navigate('loan_detail', {id: ${c.loan_id}})">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-sm font-bold">
+                                        <div class="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
                                             ${c.first_name[0]}${c.last_name[0]}
                                         </div>
                                         <div>

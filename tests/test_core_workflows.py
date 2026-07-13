@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import importlib
 import os
@@ -272,3 +273,183 @@ def test_backup_restore_replaces_active_profile_safely(tmp_path, monkeypatch):
     ids = {client["id"] for client in clients}
     assert first_client in ids
     assert second_client not in ids
+
+
+def test_amortization_schedules_reconcile_to_contract_totals():
+    from loan_engine import generate_amortization_schedule, get_loan_summary
+
+    cases = [
+        (1000, 1, 3),
+        (9999.99, 17.5, 7),
+        (123456.78, 0, 120),
+    ]
+    for interest_type in ("fixed", "declining"):
+        for principal, rate, term in cases:
+            summary = get_loan_summary(principal, rate, interest_type, term)
+            schedule = generate_amortization_schedule(
+                principal, rate, interest_type, term, "2026-01-31"
+            )
+
+            assert len(schedule) == term
+            assert round(sum(row["principal_portion"] for row in schedule), 2) == round(principal, 2)
+            assert round(sum(row["interest_portion"] for row in schedule), 2) == summary["total_interest"]
+            assert round(sum(row["total_due"] for row in schedule), 2) == summary["total_amount"]
+            assert schedule[-1]["balance_remaining"] == 0
+
+
+def test_payment_rejects_overpayment_and_closed_loan(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(client_id, 1200, 12, "fixed", 3, "2026-01-01")
+    loan_id = created["loan_id"]
+    total_due = api_obj.get_loan(loan_id)["remaining"]
+
+    rejected = api_obj.record_payment(loan_id, total_due + 0.01, "cash", "2026-02-01")
+    assert rejected["success"] is False
+    assert api_obj.get_loan(loan_id)["total_paid"] == 0
+
+    payment_id = api_obj.record_payment(loan_id, total_due, "cash", "2026-02-01")
+    assert isinstance(payment_id, int)
+    assert api_obj.get_loan(loan_id)["status"] == "paid"
+
+    rejected = api_obj.record_payment(loan_id, 1, "cash", "2026-02-02")
+    assert rejected["success"] is False
+
+
+def test_renewal_counts_fully_paid_installments_not_payment_rows(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(client_id, 6000, 12, "fixed", 6, "2026-01-01")
+    loan_id = created["loan_id"]
+
+    for day in range(1, 4):
+        assert isinstance(
+            api_obj.record_payment(loan_id, 1, "cash", f"2026-02-0{day}"),
+            int,
+        )
+    info = api_obj.get_loan_rollover_info(loan_id)
+    assert info["months_paid"] == 0
+    assert info["can_renew"] is False
+
+    installment = api_obj.get_loan(loan_id)["schedule"][0]["total_due"]
+    assert isinstance(
+        api_obj.record_payment(loan_id, installment * 3 - 3, "cash", "2026-02-04"),
+        int,
+    )
+    info = api_obj.get_loan_rollover_info(loan_id)
+    assert info["months_paid"] == 3
+    assert info["can_renew"] is True
+
+
+def test_extension_preserves_contract_total_and_payment_allocations(tmp_path, monkeypatch):
+    api_obj, _, database, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(client_id, 1200, 12, "fixed", 3, "2026-01-01")
+    loan_id = created["loan_id"]
+    payment_id = api_obj.record_payment(loan_id, 100, "cash", "2026-02-01")
+
+    before = api_obj.get_loan(loan_id)
+    contract_total = round(before["principal"] + before["total_interest"], 2)
+    result = api_obj.extend_loan(loan_id, 2)
+    assert result["success"] is True
+
+    after = api_obj.get_loan(loan_id)
+    assert after["term_months"] == 5
+    assert after["original_term_months"] == 3
+    assert len(after["schedule"]) == 5
+    assert after["total_interest"] == before["total_interest"]
+    assert after["remaining"] == before["remaining"]
+    assert round(sum(row["total_due"] for row in after["schedule"]), 2) == contract_total
+    assert result["new_monthly_payment"] < before["monthly_payment"]
+
+    conn = database.get_connection()
+    allocated = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM payment_allocations WHERE payment_id = ?",
+        (payment_id,),
+    ).fetchone()[0]
+    conn.close()
+    assert allocated == 100
+
+
+def test_overdue_alerts_use_schedule_allocations_after_extension(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(client_id, 1200, 12, "fixed", 3, "2020-01-01")
+    loan_id = created["loan_id"]
+
+    first_installment = api_obj.get_loan(loan_id)["schedule"][0]["total_due"]
+    assert isinstance(
+        api_obj.record_payment(loan_id, first_installment, "cash", "2020-02-01"),
+        int,
+    )
+    assert api_obj.extend_loan(loan_id, 2)["success"] is True
+
+    loan = api_obj.get_loan(loan_id)
+    alerts = api_obj.get_overdue_alerts()
+    assert len(alerts) == 1
+    assert alerts[0]["missed_count"] == 4
+    assert alerts[0]["earliest_due"] == loan["schedule"][1]["due_date"]
+    assert alerts[0]["total_overdue_amount"] == loan["remaining"]
+
+
+def test_dashboard_interest_uses_payment_allocations(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(client_id, 1200, 12, "fixed", 3, "2026-01-01")
+    assert isinstance(
+        api_obj.record_payment(created["loan_id"], 100, "cash", "2026-02-01"),
+        int,
+    )
+
+    stats = api_obj.get_dashboard_stats()
+    assert stats["total_collected"] == 100
+    assert stats["interest_collected"] == 48
+
+
+def test_demo_data_uses_production_rates_methods_and_allocations(tmp_path, monkeypatch):
+    api_obj, _, database, _ = fresh_api(tmp_path, monkeypatch)
+    result = api_obj.toggle_demo_mode(True)
+    assert result["success"] is True
+
+    conn = database.get_connection()
+    invalid_methods = conn.execute("""
+        SELECT COUNT(*) FROM payments
+        WHERE payment_method NOT IN ('cash', 'gcash', 'bank_transfer', 'check')
+    """).fetchone()[0]
+    payment_total = conn.execute(
+        "SELECT ROUND(COALESCE(SUM(amount), 0), 2) FROM payments WHERE voided_at IS NULL"
+    ).fetchone()[0]
+    allocation_total = conn.execute("""
+        SELECT ROUND(COALESCE(SUM(pa.amount), 0), 2)
+        FROM payment_allocations pa
+        JOIN payments p ON p.id = pa.payment_id
+        WHERE p.voided_at IS NULL
+    """).fetchone()[0]
+    sample = conn.execute("""
+        SELECT l.interest_rate, l.principal + l.total_interest AS contract_total,
+               SUM(a.total_due) AS schedule_total
+        FROM loans l
+        JOIN amortization_schedule a ON a.loan_id = l.id
+        WHERE l.client_id = 'DEMO-LOW-001'
+        GROUP BY l.id
+    """).fetchone()
+    conn.close()
+
+    assert invalid_methods == 0
+    assert allocation_total == payment_total
+    assert sample["interest_rate"] == 30
+    assert round(sample["schedule_total"], 2) == round(sample["contract_total"], 2)
+    api_obj.toggle_demo_mode(False)
+
+
+def test_financial_pdfs_render_with_explicit_rate_semantics(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(client_id, 15000, 18, "fixed", 6, "2026-01-01")
+    pdf_generator = importlib.import_module("pdf_generator")
+
+    for pdf_data in (
+        pdf_generator.generate_contract_pdf(created["loan_id"]),
+        pdf_generator.generate_amortization_pdf(created["loan_id"]),
+    ):
+        assert base64.b64decode(pdf_data).startswith(b"%PDF")

@@ -13,6 +13,7 @@ import sys
 import random
 from datetime import datetime, timedelta
 from database import get_connection, set_demo_mode, generate_client_id
+from loan_engine import generate_amortization_schedule, get_loan_summary
 
 # Force UTF-8 on Windows console to avoid 'charmap' codec errors with special characters
 if sys.platform == "win32":
@@ -34,39 +35,55 @@ def _days_ago(n):
 
 
 def _make_amortization(c, loan_id, principal, rate, term, start_date_str):
-    """Insert a full amortization schedule for a loan (fixed interest)."""
-    start = datetime.strptime(start_date_str, "%Y-%m-%d")
-    monthly_interest = principal * (rate / 100)
-    monthly_principal = principal / term
-    monthly_total     = monthly_principal + monthly_interest
-    balance           = principal
-
-    for i in range(1, term + 1):
-        due = (start + timedelta(days=30 * i)).strftime("%Y-%m-%d")
-        balance -= monthly_principal
+    """Insert a production-equivalent fixed schedule from a monthly rate."""
+    total_term_rate = float(rate) * int(term)
+    schedule = generate_amortization_schedule(
+        principal, total_term_rate, "fixed", term, start_date_str
+    )
+    for entry in schedule:
         c.execute("""
             INSERT INTO amortization_schedule
                 (loan_id, month_number, due_date, principal_portion,
                  interest_portion, total_due, balance_remaining)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (loan_id, i, due, round(monthly_principal, 2),
-              round(monthly_interest, 2), round(monthly_total, 2),
-              round(max(0, balance), 2)))
+        """, (
+            loan_id,
+            entry["month_number"],
+            entry["due_date"],
+            entry["principal_portion"],
+            entry["interest_portion"],
+            entry["total_due"],
+            entry["balance_remaining"],
+        ))
 
-    return round(monthly_total, 2)
+    return schedule[0]["total_due"]
 
 
 def _add_payments(c, loan_id, monthly_payment, start_date_str, months_paid):
-    """Insert payment records for the first N months."""
-    start = datetime.strptime(start_date_str, "%Y-%m-%d")
-    for i in range(1, months_paid + 1):
-        pay_date = (start + timedelta(days=30 * i)).strftime("%Y-%m-%d")
-        method = random.choice(["cash", "gcash", "bank"])
+    """Insert and allocate payments using the same rules as the main API."""
+    c.execute("""
+        SELECT id, due_date, total_due
+        FROM amortization_schedule
+        WHERE loan_id = ?
+        ORDER BY month_number
+        LIMIT ?
+    """, (loan_id, int(months_paid)))
+    scheduled_payments = c.fetchall()
+    for schedule in scheduled_payments:
+        pay_date = schedule["due_date"]
+        amount = float(schedule["total_due"])
+        method = random.choice(["cash", "gcash", "bank_transfer"])
         c.execute("""
             INSERT INTO payments (loan_id, amount, payment_date, payment_method, notes, created_at)
             VALUES (?, ?, ?, ?, '', ?)
-        """, (loan_id, round(monthly_payment, 2), pay_date, method,
+        """, (loan_id, amount, pay_date, method,
               pay_date + " 09:00:00"))
+        payment_id = c.lastrowid
+        c.execute("""
+            INSERT INTO payment_allocations
+                (payment_id, schedule_id, amount, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (payment_id, schedule["id"], amount, pay_date + " 09:00:00"))
 
 
 def _add_client(c, cid, first, last, contact, rating=4, notes="", monthly_income=25000, referred_by=None):
@@ -82,17 +99,17 @@ def _add_client(c, cid, first, last, contact, rating=4, notes="", monthly_income
 
 
 def _add_loan(c, client_id, principal, rate, term, start_date, status="active"):
-    interest = principal * (rate / 100) * term
-    monthly_payment = (principal + interest) / term
+    total_term_rate = float(rate) * int(term)
+    summary = get_loan_summary(principal, total_term_rate, "fixed", term)
     now = start_date + " 08:00:00"
     c.execute("""
         INSERT INTO loans (client_id, principal, interest_rate, interest_type,
-                           term_months, start_date, status, total_interest,
+                           term_months, original_term_months, start_date, status, total_interest,
                            monthly_payment, created_at)
-        VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?)
-    """, (client_id, principal, rate, term, start_date, status,
-          round(interest, 2), round(monthly_payment, 2), now))
-    return c.lastrowid, round(monthly_payment, 2)
+        VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?)
+    """, (client_id, principal, total_term_rate, term, term, start_date, status,
+          summary["total_interest"], summary["monthly_payment"], now))
+    return c.lastrowid, summary["monthly_payment"]
 
 
 def generate_demo_data():

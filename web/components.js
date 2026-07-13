@@ -14,7 +14,7 @@ const UI = {
             <div class="modal-overlay fixed inset-0 z-40 flex items-center justify-center p-4">
                 <div class="modal-content ${width} w-full max-h-[85vh] flex flex-col z-50" onclick="event.stopPropagation()">
                     <div class="flex items-center justify-between px-5 py-4" style="border-bottom: 0.5px solid var(--surface-2);">
-                        <h3 class="text-base font-semibold" style="color:var(--text-primary); letter-spacing:-0.2px;">${title}</h3>
+                        <h3 class="text-base font-semibold" style="color:var(--text-primary);">${title}</h3>
                         ${showClose ? `<button onclick="UI.closeModal()" class="btn btn-icon btn-ghost"><i data-lucide="x" class="w-4 h-4"></i></button>` : ''}
                     </div>
                     <div class="px-5 py-4 overflow-y-auto flex-1">${content}</div>
@@ -77,7 +77,7 @@ const UI = {
             '<p id="map-overlay-coords" style="font-size:11px;color:var(--text-tertiary,#888);font-family:monospace;">' + coordText + '</p>' +
             '<div style="display:flex;gap:8px;">' +
             confirmBtnHtml +
-            '<button id="map-overlay-close2" style="padding:6px 14px;border-radius:10px;border:none;cursor:pointer;background:rgba(255,255,255,0.1);color:var(--text-primary,#fff);font-size:13px;">Fermer</button>' +
+            '<button id="map-overlay-close2" style="padding:6px 14px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,0.1);color:var(--text-primary,#fff);font-size:13px;">Close</button>' +
             '</div>' +
             '</div>' +
             '</div>';
@@ -122,7 +122,7 @@ const UI = {
             // Icone epingle personnalisee
             const pinIcon = L.divIcon({
                 className: '',
-                html: '<div style="width:32px;height:32px;background:linear-gradient(135deg,#007AFF,#5856D6);border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 4px 12px rgba(0,122,255,0.55);cursor:grab;"></div>',
+                html: '<div style="width:32px;height:32px;background:var(--accent);border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.24);cursor:grab;"></div>',
                 iconSize: [32, 32],
                 iconAnchor: [16, 32]
             });
@@ -288,26 +288,18 @@ const UI = {
     // STAT CARD
     // ═══════════════════════════════════════════════════════════
     statCard(icon, label, value, color = 'blue', extra = '') {
-        const styles = {
-            blue: { bg: 'linear-gradient(135deg,#007AFF,#5856D6)', shadow: 'rgba(0,122,255,0.35)' },
-            green: { bg: 'linear-gradient(135deg,#34C759,#30B0C7)', shadow: 'rgba(52,199,89,0.35)' },
-            red: { bg: 'linear-gradient(135deg,#FF3B30,#FF375F)', shadow: 'rgba(255,59,48,0.35)' },
-            amber: { bg: 'linear-gradient(135deg,#FF9500,#FF6B00)', shadow: 'rgba(255,149,0,0.35)' },
-            purple: { bg: 'linear-gradient(135deg,#AF52DE,#5856D6)', shadow: 'rgba(175,82,222,0.35)' },
-            cyan: { bg: 'linear-gradient(135deg,#5AC8FA,#007AFF)', shadow: 'rgba(90,200,250,0.35)' },
-        };
-        const s = styles[color] || styles.blue;
+        const tones = ['blue', 'green', 'red', 'amber', 'purple', 'cyan'];
+        const tone = tones.includes(color) ? color : 'blue';
         return `
-            <div class="stat-card text-white animate-slide-up"
-                 style="background:${s.bg}; box-shadow: 0 8px 28px ${s.shadow};">
+            <div class="stat-card stat-card-${tone} animate-slide-up">
                 <div class="flex items-start justify-between">
-                    <div>
-                        <p style="font-size:12px; font-weight:500; color:rgba(255,255,255,0.72); letter-spacing:-0.1px;">${label}</p>
-                        <p style="font-size:26px; font-weight:700; letter-spacing:-0.8px; margin-top:4px;" class="animate-count">${value}</p>
-                        ${extra ? `<p style="font-size:11px; color:rgba(255,255,255,0.58); margin-top:3px;">${extra}</p>` : ''}
+                    <div class="min-w-0">
+                        <p class="stat-label">${label}</p>
+                        <p class="stat-value animate-count">${value}</p>
+                        ${extra ? `<p class="stat-extra">${extra}</p>` : ''}
                     </div>
-                    <div style="padding:9px; background:rgba(255,255,255,0.18); border-radius:14px;">
-                        <i data-lucide="${icon}" class="w-5 h-5"></i>
+                    <div class="stat-icon">
+                        <i data-lucide="${icon}" class="w-4 h-4"></i>
                     </div>
                 </div>
             </div>

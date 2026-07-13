@@ -289,6 +289,7 @@ def init_database():
             interest_rate       REAL NOT NULL,
             interest_type       TEXT NOT NULL CHECK(interest_type IN ('fixed', 'declining')),
             term_months         INTEGER NOT NULL,
+            original_term_months INTEGER NOT NULL,
             start_date          TEXT NOT NULL,
             status              TEXT NOT NULL DEFAULT 'active'
                                 CHECK(status IN ('active', 'paid', 'defaulted', 'refinanced')),
@@ -523,6 +524,7 @@ def init_database():
         ("clients",  "social_media",      "ALTER TABLE clients ADD COLUMN social_media TEXT DEFAULT '[]'"),
         ("loans",    "original_loan_id",  "ALTER TABLE loans ADD COLUMN original_loan_id INTEGER DEFAULT NULL"),
         ("loans",    "rollover_amount",   "ALTER TABLE loans ADD COLUMN rollover_amount REAL DEFAULT 0"),
+        ("loans",    "original_term_months", "ALTER TABLE loans ADD COLUMN original_term_months INTEGER DEFAULT NULL"),
         ("payments", "voided_at",         "ALTER TABLE payments ADD COLUMN voided_at TEXT DEFAULT NULL"),
         ("payments", "void_reason",       "ALTER TABLE payments ADD COLUMN void_reason TEXT DEFAULT ''"),
     ]
@@ -535,58 +537,72 @@ def init_database():
             except Exception:
                 pass  # column may already exist in some edge case
 
+    cursor.execute("""
+        UPDATE loans
+        SET original_term_months = term_months
+        WHERE original_term_months IS NULL OR original_term_months < 1
+    """)
+
     # Extend loans status constraint safely (SQLite doesn't support ALTER CONSTRAINT)
     # The CHECK is advisory; new statuses will work fine in practice with SQLite.
 
-    # Backfill allocation rows for existing payments once. New payments are
-    # allocated by the API transaction that records them.
-    cursor.execute("SELECT COUNT(*) FROM payment_allocations")
-    allocation_count = cursor.fetchone()[0]
-    if allocation_count == 0:
+    # Backfill any missing allocation amounts. This runs incrementally so a
+    # partially migrated database or newly generated demo data is also repaired.
+    cursor.execute("""
+        SELECT
+            p.id,
+            p.loan_id,
+            p.amount,
+            p.created_at,
+            COALESCE(SUM(pa.amount), 0) AS allocated_amount
+        FROM payments p
+        LEFT JOIN payment_allocations pa ON pa.payment_id = p.id
+        WHERE p.voided_at IS NULL
+        GROUP BY p.id, p.loan_id, p.amount, p.created_at
+        ORDER BY p.loan_id, p.payment_date, p.id
+    """)
+    existing_payments = cursor.fetchall()
+    for payment in existing_payments:
+        remaining_amount = round(
+            float(payment["amount"]) - float(payment["allocated_amount"]), 2
+        )
+        if remaining_amount <= 0:
+            continue
         cursor.execute("""
-            SELECT id, loan_id, amount, created_at
-            FROM payments
-            WHERE voided_at IS NULL
-            ORDER BY loan_id, payment_date, id
-        """)
-        existing_payments = cursor.fetchall()
-        for payment in existing_payments:
-            remaining_amount = round(float(payment["amount"]), 2)
+            SELECT
+                a.id,
+                a.total_due,
+                COALESCE((
+                    SELECT SUM(pa.amount)
+                    FROM payment_allocations pa
+                    JOIN payments p ON p.id = pa.payment_id
+                    WHERE pa.schedule_id = a.id
+                      AND p.voided_at IS NULL
+                ), 0) AS already_allocated
+            FROM amortization_schedule a
+            WHERE a.loan_id = ?
+            ORDER BY a.month_number ASC
+        """, (payment["loan_id"],))
+        for schedule in cursor.fetchall():
             if remaining_amount <= 0:
+                break
+            open_amount = round(schedule["total_due"] - schedule["already_allocated"], 2)
+            if open_amount <= 0:
                 continue
+            allocated = min(remaining_amount, open_amount)
             cursor.execute("""
-                SELECT
-                    a.id,
-                    a.total_due,
-                    COALESCE((
-                        SELECT SUM(pa.amount)
-                        FROM payment_allocations pa
-                        JOIN payments p ON p.id = pa.payment_id
-                        WHERE pa.schedule_id = a.id
-                          AND p.voided_at IS NULL
-                    ), 0) AS already_allocated
-                FROM amortization_schedule a
-                WHERE a.loan_id = ?
-                ORDER BY a.month_number ASC
-            """, (payment["loan_id"],))
-            for schedule in cursor.fetchall():
-                if remaining_amount <= 0:
-                    break
-                open_amount = round(schedule["total_due"] - schedule["already_allocated"], 2)
-                if open_amount <= 0:
-                    continue
-                allocated = min(remaining_amount, open_amount)
-                cursor.execute("""
-                    INSERT OR IGNORE INTO payment_allocations
-                        (payment_id, schedule_id, amount, created_at)
-                    VALUES (?, ?, ?, ?)
-                """, (
-                    payment["id"],
-                    schedule["id"],
-                    round(allocated, 2),
-                    payment["created_at"] or datetime.now().isoformat()
-                ))
-                remaining_amount = round(remaining_amount - allocated, 2)
+                INSERT INTO payment_allocations
+                    (payment_id, schedule_id, amount, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(payment_id, schedule_id)
+                DO UPDATE SET amount = payment_allocations.amount + excluded.amount
+            """, (
+                payment["id"],
+                schedule["id"],
+                round(allocated, 2),
+                payment["created_at"] or datetime.now().isoformat()
+            ))
+            remaining_amount = round(remaining_amount - allocated, 2)
 
     applied_at = datetime.now().isoformat()
     for version in [
@@ -594,6 +610,7 @@ def init_database():
         "20260504_payment_allocations",
         "20260504_audit_events",
         "20260504_void_payments",
+        "20260713_original_term_months",
     ]:
         cursor.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",

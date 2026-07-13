@@ -9,6 +9,7 @@ import sys
 import hmac
 import secrets
 import hashlib
+import math
 import json
 import sqlite3
 import base64
@@ -16,6 +17,8 @@ import subprocess
 import webbrowser
 import traceback
 from datetime import datetime
+
+from dateutil.relativedelta import relativedelta
 
 import logger as app_logger  # persistent error logger
 
@@ -28,7 +31,7 @@ from database import (
     rename_profile as db_rename_profile, delete_profile as db_delete_profile,
     reset_profile_data, get_db_path
 )
-from loan_engine import generate_amortization_schedule, get_loan_summary
+from loan_engine import distribute_money, generate_amortization_schedule, get_loan_summary
 from pdf_generator import generate_contract_pdf, generate_receipt_pdf, generate_amortization_pdf
 from excel_export import export_all_to_excel, export_selective
 from backup import (
@@ -264,6 +267,27 @@ class Api:
         if new_status != loan["status"]:
             cursor.execute("UPDATE loans SET status = ? WHERE id = ?", (new_status, loan_id))
 
+    def _fully_paid_installment_count(self, cursor, loan_id):
+        """Count installments whose allocated, non-voided payments cover the amount due."""
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM (
+                SELECT
+                    a.id,
+                    a.total_due,
+                    COALESCE(SUM(
+                        CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END
+                    ), 0) AS paid_amount
+                FROM amortization_schedule a
+                LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                LEFT JOIN payments p ON p.id = pa.payment_id
+                WHERE a.loan_id = ?
+                GROUP BY a.id, a.total_due
+                HAVING paid_amount >= a.total_due - 0.005
+            ) paid_installments
+        """, (int(loan_id),))
+        return int(cursor.fetchone()[0])
+
     def toggle_demo_mode(self, enabled):
         """Toggle demo mode (uses a separate prepopulated database)."""
         self._is_demo = enabled
@@ -351,7 +375,7 @@ class Api:
         c.execute("SELECT COALESCE(SUM(principal), 0) FROM loans")
         total_capital = c.fetchone()[0]
 
-        # Total interest earned (from payments on active+paid loans)
+        # Total valid payments received.
         c.execute("""
             SELECT COALESCE(SUM(p.amount), 0)
             FROM payments p
@@ -364,10 +388,30 @@ class Api:
         c.execute("SELECT COALESCE(SUM(total_interest), 0) FROM loans")
         total_expected_interest = c.fetchone()[0]
 
-        # Interest collected (total collected - total principal paid back)
-        c.execute("SELECT COALESCE(SUM(principal), 0) FROM loans WHERE status = 'paid'")
-        principal_paid_back = c.fetchone()[0]
-        interest_collected = max(0, total_collected - principal_paid_back)
+        # Interest collected, allocated interest-first within each installment.
+        # Subtracting principal only from fully paid loans under-reported active
+        # portfolios and could even report zero after substantial collections.
+        c.execute("""
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN schedule_paid >= interest_portion THEN interest_portion
+                    ELSE schedule_paid
+                END
+            ), 0)
+            FROM (
+                SELECT
+                    a.id,
+                    a.interest_portion,
+                    COALESCE(SUM(
+                        CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END
+                    ), 0) AS schedule_paid
+                FROM amortization_schedule a
+                LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                LEFT JOIN payments p ON p.id = pa.payment_id
+                GROUP BY a.id, a.interest_portion
+            ) allocations
+        """)
+        interest_collected = c.fetchone()[0]
 
         # Client count
         c.execute("SELECT COUNT(*) FROM clients")
@@ -513,33 +557,62 @@ class Api:
     def create_client(self, data):
         """Create a new client. Returns the new client ID."""
         conn = get_connection()
-        c = conn.cursor()
-        now = datetime.now().isoformat()
-        client_id = generate_client_id()
+        try:
+            c = conn.cursor()
+            now = datetime.now().isoformat()
+            first_name = str(data.get("first_name") or "").strip()
+            last_name = str(data.get("last_name") or "").strip()
+            if not first_name or not last_name:
+                raise ValueError("First name and last name are required.")
 
-        c.execute("""
-            INSERT INTO clients (id, first_name, last_name, address, address_detail, contact, email,
-                                 rating, referred_by, notes, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            client_id,
-            data.get('first_name', ''),
-            data.get('last_name', ''),
-            data.get('address', ''),
-            data.get('address_detail', ''),
-            data.get('contact', ''),
-            data.get('email', ''),
-            data.get('rating', 3),
-            data.get('referred_by') or None,
-            data.get('notes', ''),
-            now, now
-        ))
-        self._audit_event(c, "client_created", "client", client_id, {
-            "name": f"{data.get('first_name', '')} {data.get('last_name', '')}".strip()
-        })
-        conn.commit()
-        conn.close()
-        return client_id
+            rating = int(data.get("rating", 3))
+            if rating < 1 or rating > 5:
+                raise ValueError("Client rating must be between 1 and 5.")
+            monthly_income = float(data.get("monthly_income") or 0)
+            if not math.isfinite(monthly_income) or monthly_income < 0:
+                raise ValueError("Monthly income cannot be negative.")
+
+            referred_by = data.get("referred_by") or None
+            if referred_by:
+                c.execute("SELECT id FROM clients WHERE id = ?", (referred_by,))
+                if not c.fetchone():
+                    raise ValueError("Referring client was not found.")
+
+            client_id = generate_client_id()
+            c.execute("""
+                INSERT INTO clients
+                    (id, first_name, last_name, address, address_detail, contact, email,
+                     rating, referred_by, notes, monthly_income, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                client_id,
+                first_name,
+                last_name,
+                str(data.get("address") or "").strip(),
+                str(data.get("address_detail") or "").strip(),
+                str(data.get("contact") or "").strip(),
+                str(data.get("email") or "").strip(),
+                rating,
+                referred_by,
+                str(data.get("notes") or "").strip(),
+                monthly_income,
+                now,
+                now,
+            ))
+            self._audit_event(c, "client_created", "client", client_id, {
+                "name": f"{first_name} {last_name}"
+            })
+            conn.commit()
+            return client_id
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            conn.rollback()
+            app_logger.log_exception("create_client", e)
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
     def update_client(self, client_id, data):
         """Update client details."""
@@ -593,7 +666,10 @@ class Api:
 
     def calculate_loan_preview(self, principal, rate, interest_type, term_months):
         """Preview loan calculations without creating."""
-        return get_loan_summary(float(principal), float(rate), interest_type, int(term_months))
+        try:
+            return get_loan_summary(principal, rate, interest_type, term_months)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
 
     def create_loan(self, client_id, principal, rate, interest_type, term_months, start_date,
                     rollover_from_loan_id=None, renewal_mode=False):
@@ -626,12 +702,12 @@ class Api:
             rate = float(rate)
             term_months = int(term_months)
             interest_type = str(interest_type or "").strip().lower()
-            if new_principal <= 0:
+            if not math.isfinite(new_principal) or new_principal <= 0:
                 raise ValueError("Principal must be greater than zero.")
-            if rate <= 0:
-                raise ValueError("Interest rate must be greater than zero.")
-            if term_months < 1:
-                raise ValueError("Loan term must be at least 1 month.")
+            if not math.isfinite(rate) or rate < 0:
+                raise ValueError("Interest rate cannot be negative.")
+            if term_months < 1 or term_months > 120:
+                raise ValueError("Loan term must be between 1 and 120 months.")
             if interest_type not in {"fixed", "declining"}:
                 raise ValueError("Interest type must be fixed or declining.")
             datetime.strptime(start_date, "%Y-%m-%d")
@@ -652,10 +728,9 @@ class Api:
                 if old_loan["status"] != "active":
                     raise ValueError("Only active loans can be refinanced.")
 
-                c.execute("SELECT COUNT(*) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (rollover_id,))
-                paid_count = c.fetchone()[0]
+                paid_count = self._fully_paid_installment_count(c, rollover_id)
                 if renewal_mode and paid_count < 3:
-                    raise ValueError("Renewal requires at least 3 recorded payments on the active loan.")
+                    raise ValueError("Renewal requires at least 3 fully paid installments on the active loan.")
 
                 total_due_old = old_loan['principal'] + old_loan['total_interest']
                 c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL",
@@ -665,6 +740,10 @@ class Api:
 
                 if renewal_mode:
                     # RENEWAL MODE: total new credit = principal, client receives the difference.
+                    if new_principal < rollover_amount - 0.005:
+                        raise ValueError(
+                            "New total credit must cover the remaining balance of the current loan."
+                        )
                     cash_given_to_client = max(0, new_principal - rollover_amount)
                 else:
                     # CLASSIC ROLLOVER: add remaining balance on top of new capital.
@@ -684,11 +763,11 @@ class Api:
             # Insert loan
             c.execute("""
                 INSERT INTO loans (client_id, principal, interest_rate, interest_type,
-                                  term_months, start_date, status, total_interest,
+                                  term_months, original_term_months, start_date, status, total_interest,
                                   monthly_payment, original_loan_id, rollover_amount, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
             """, (
-                client_id, new_principal, rate, interest_type, term_months,
+                client_id, new_principal, rate, interest_type, term_months, term_months,
                 start_date, summary['total_interest'], summary['monthly_payment'],
                 rollover_id, rollover_amount, now
             ))
@@ -785,9 +864,9 @@ class Api:
         # Total paid
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (loan_id,))
         loan['total_paid'] = c.fetchone()[0]
-        loan['remaining'] = round(
+        loan['remaining'] = max(0, round(
             loan['principal'] + loan['total_interest'] - loan['total_paid'], 2
-        )
+        ))
 
         conn.close()
         return loan
@@ -852,26 +931,46 @@ class Api:
 
     def update_loan_status(self, loan_id, status):
         """Update a loan's status."""
+        normalized_status = str(status or "").strip().lower()
+        if normalized_status not in {"active", "paid", "defaulted", "refinanced"}:
+            return {"success": False, "error": "Invalid loan status."}
         conn = get_connection()
-        c = conn.cursor()
-        c.execute("UPDATE loans SET status = ? WHERE id = ?", (status, loan_id))
-        conn.commit()
-        conn.close()
-        return True
+        try:
+            c = conn.cursor()
+            c.execute("SELECT id FROM loans WHERE id = ?", (int(loan_id),))
+            if not c.fetchone():
+                return {"success": False, "error": "Loan not found."}
+            c.execute(
+                "UPDATE loans SET status = ? WHERE id = ?",
+                (normalized_status, int(loan_id))
+            )
+            self._audit_event(c, "loan_status_changed", "loan", loan_id, {
+                "status": normalized_status
+            })
+            conn.commit()
+            return {"success": True, "status": normalized_status}
+        except (TypeError, ValueError):
+            conn.rollback()
+            return {"success": False, "error": "Invalid loan identifier."}
+        finally:
+            conn.close()
 
     def extend_loan(self, loan_id, additional_months):
         """
-        Extend a loan by adding more months to its term.
-        Regenerates the amortization schedule from the remaining balance.
+        Extend an active loan by spreading its unpaid principal and interest
+        across the remaining installments plus the requested extra months.
+
+        The contractual total is preserved: extending a term never adds a
+        hidden second interest charge and existing payment allocations remain
+        attached to their original installments.
         """
-        from loan_engine import generate_amortization_schedule
         conn = get_connection()
         try:
             c = conn.cursor()
             loan_id = int(loan_id)
             additional_months = int(additional_months)
-            if additional_months < 1:
-                return {"success": False, "error": "Additional months must be at least 1."}
+            if additional_months < 1 or additional_months > 60:
+                return {"success": False, "error": "Additional months must be between 1 and 60."}
 
             # Get loan details
             c.execute("SELECT * FROM loans WHERE id = ?", (loan_id,))
@@ -882,55 +981,132 @@ class Api:
             if loan['status'] != 'active':
                 return {"success": False, "error": "Only active loans can be extended"}
 
-            # Calculate total paid
-            c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (loan_id,))
-            total_paid = c.fetchone()[0]
+            c.execute("""
+                SELECT
+                    a.*,
+                    COALESCE(SUM(
+                        CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END
+                    ), 0) AS allocated
+                FROM amortization_schedule a
+                LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                LEFT JOIN payments p ON p.id = pa.payment_id
+                WHERE a.loan_id = ?
+                GROUP BY a.id
+                ORDER BY a.month_number
+            """, (loan_id,))
+            schedule_rows = rows_to_list(c.fetchall())
+            if not schedule_rows:
+                return {"success": False, "error": "Loan has no amortization schedule."}
 
-            # Remaining balance
-            remaining_balance = max(0, loan['principal'] + loan['total_interest'] - total_paid)
-            if remaining_balance <= 0:
+            open_rows = [
+                row for row in schedule_rows
+                if float(row["allocated"]) < float(row["total_due"]) - 0.005
+            ]
+            if not open_rows:
                 return {"success": False, "error": "Loan is already fully paid."}
 
-            # Get the last due date from current schedule
-            c.execute("SELECT MAX(due_date), MAX(month_number) FROM amortization_schedule WHERE loan_id = ?",
-                      (loan_id,))
-            row = c.fetchone()
-            last_due_date = row[0] if row[0] else loan['start_date']
-            last_month_num = row[1] if row[1] else 0
+            remaining_principal = 0.0
+            remaining_interest = 0.0
+            paid_components = {}
+            for row in open_rows:
+                allocated = min(float(row["allocated"]), float(row["total_due"]))
+                interest_paid = min(float(row["interest_portion"]), allocated)
+                principal_paid = min(
+                    float(row["principal_portion"]),
+                    max(0.0, allocated - interest_paid)
+                )
+                paid_components[row["id"]] = (principal_paid, interest_paid)
+                remaining_principal += float(row["principal_portion"]) - principal_paid
+                remaining_interest += float(row["interest_portion"]) - interest_paid
 
-            new_term = loan['term_months'] + additional_months
+            installment_count = len(open_rows) + additional_months
+            principal_parts = distribute_money(remaining_principal, installment_count)
+            interest_parts = distribute_money(remaining_interest, installment_count)
 
-            # Build new schedule for additional months using remaining balance
-            new_schedule = generate_amortization_schedule(
-                remaining_balance, loan['interest_rate'], loan['interest_type'],
-                additional_months, last_due_date
-            )
-            if not new_schedule:
-                return {"success": False, "error": "Could not generate additional schedule."}
+            # Rebalance existing unpaid rows while retaining their IDs and allocations.
+            for index, row in enumerate(open_rows):
+                paid_principal, paid_interest = paid_components[row["id"]]
+                principal_portion = round(paid_principal + principal_parts[index], 2)
+                interest_portion = round(paid_interest + interest_parts[index], 2)
+                c.execute("""
+                    UPDATE amortization_schedule
+                    SET principal_portion = ?, interest_portion = ?, total_due = ?
+                    WHERE id = ?
+                """, (
+                    principal_portion,
+                    interest_portion,
+                    round(principal_portion + interest_portion, 2),
+                    row["id"]
+                ))
 
-            # Update loan term
-            c.execute("UPDATE loans SET term_months = ? WHERE id = ?", (new_term, loan_id))
-
-            # Append new schedule entries (month numbers continuing from last)
-            for i, entry in enumerate(new_schedule):
+            last_due_date = datetime.strptime(schedule_rows[-1]["due_date"], "%Y-%m-%d")
+            last_month_num = int(schedule_rows[-1]["month_number"])
+            for offset in range(additional_months):
+                part_index = len(open_rows) + offset
+                due_date = last_due_date + relativedelta(months=offset + 1)
                 c.execute("""
                     INSERT INTO amortization_schedule
                         (loan_id, month_number, due_date, principal_portion,
                          interest_portion, total_due, balance_remaining)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    loan_id, last_month_num + i + 1, entry['due_date'],
-                    entry['principal_portion'], entry['interest_portion'],
-                    entry['total_due'], entry['balance_remaining']
+                    loan_id,
+                    last_month_num + offset + 1,
+                    due_date.strftime("%Y-%m-%d"),
+                    principal_parts[part_index],
+                    interest_parts[part_index],
+                    round(principal_parts[part_index] + interest_parts[part_index], 2),
+                    0
                 ))
+
+            # Recompute principal balances from the complete revised schedule.
+            c.execute("""
+                SELECT id, principal_portion
+                FROM amortization_schedule
+                WHERE loan_id = ?
+                ORDER BY month_number
+            """, (loan_id,))
+            principal_balance = round(float(loan["principal"]), 2)
+            for row in c.fetchall():
+                principal_balance = max(0, round(principal_balance - row["principal_portion"], 2))
+                c.execute(
+                    "UPDATE amortization_schedule SET balance_remaining = ? WHERE id = ?",
+                    (principal_balance, row["id"])
+                )
+
+            new_term = int(loan['term_months']) + additional_months
+            new_installment = round(principal_parts[0] + interest_parts[0], 2)
+            c.execute("""
+                UPDATE loans
+                SET term_months = ?, monthly_payment = ?
+                WHERE id = ?
+            """, (new_term, new_installment, loan_id))
+
+            c.execute("""
+                SELECT ROUND(COALESCE(SUM(total_due), 0), 2)
+                FROM amortization_schedule
+                WHERE loan_id = ?
+            """, (loan_id,))
+            schedule_total = float(c.fetchone()[0])
+            contract_total = round(float(loan["principal"]) + float(loan["total_interest"]), 2)
+            if abs(schedule_total - contract_total) > 0.01:
+                raise ValueError("Extended schedule does not reconcile with the loan total.")
 
             self._audit_event(c, "loan_extended", "loan", loan_id, {
                 "additional_months": additional_months,
-                "new_term": new_term
+                "new_term": new_term,
+                "new_installment": new_installment,
+                "contract_total": contract_total
             })
             conn.commit()
             app_logger.info("Loan extended: loan_id=%s added %d months", loan_id, additional_months)
-            return {"success": True, "new_term": new_term, "additional_months": additional_months}
+            return {
+                "success": True,
+                "new_term": new_term,
+                "additional_months": additional_months,
+                "new_monthly_payment": new_installment,
+                "remaining_balance": round(remaining_principal + remaining_interest, 2)
+            }
         except ValueError as e:
             conn.rollback()
             return {"success": False, "error": str(e)}
@@ -993,7 +1169,19 @@ class Api:
                 c.id AS client_id,
                 c.first_name,
                 c.last_name,
-                (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) AS total_paid_on_loan
+                (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) AS total_paid_on_loan,
+                (
+                    SELECT COUNT(*)
+                    FROM amortization_schedule a2
+                    WHERE a2.loan_id = l.id
+                      AND COALESCE((
+                          SELECT SUM(pa2.amount)
+                          FROM payment_allocations pa2
+                          JOIN payments p2 ON p2.id = pa2.payment_id
+                          WHERE pa2.schedule_id = a2.id
+                            AND p2.voided_at IS NULL
+                      ), 0) >= a2.total_due - 0.005
+                ) AS installments_paid
             FROM payments p
             JOIN loans l ON p.loan_id = l.id
             JOIN clients c ON l.client_id = c.id
@@ -1008,7 +1196,7 @@ class Api:
         for r in rows:
             total_due = r['principal'] + r['total_interest']
             remaining = max(0, total_due - r['total_paid_on_loan'])
-            months_paid = round(r['total_paid_on_loan'] / r['monthly_payment']) if r['monthly_payment'] > 0 else 0
+            months_paid = int(r['installments_paid'] or 0)
             months_remaining = max(0, r['term_months'] - months_paid)
             r['total_due'] = round(total_due, 2)
             r['remaining_balance'] = round(remaining, 2)
@@ -1098,15 +1286,37 @@ class Api:
             loan_id = int(loan_id)
             amount = float(amount)
             method = _normalize_payment_method(method)
-            if amount <= 0:
+            if not math.isfinite(amount) or amount <= 0:
                 raise ValueError("Payment amount must be greater than zero.")
             datetime.strptime(payment_date, "%Y-%m-%d")
 
-            # Check loan before inserting so invalid calls do not leave locks behind.
-            c.execute("SELECT principal, total_interest FROM loans WHERE id = ?", (loan_id,))
+            # Check the loan and outstanding balance before inserting.
+            c.execute(
+                "SELECT principal, total_interest, status FROM loans WHERE id = ?",
+                (loan_id,)
+            )
             loan = c.fetchone()
             if not loan:
                 raise ValueError("Loan not found.")
+            if loan["status"] in {"paid", "refinanced"}:
+                raise ValueError(f"Payments cannot be recorded on a {loan['status']} loan.")
+
+            c.execute("""
+                SELECT COALESCE(SUM(amount), 0)
+                FROM payments
+                WHERE loan_id = ? AND voided_at IS NULL
+            """, (loan_id,))
+            already_paid = float(c.fetchone()[0])
+            outstanding = max(
+                0,
+                round(float(loan["principal"]) + float(loan["total_interest"]) - already_paid, 2)
+            )
+            if outstanding <= 0:
+                raise ValueError("Loan is already fully paid.")
+            if amount > outstanding + 0.005:
+                raise ValueError(
+                    f"Payment exceeds the outstanding balance of {outstanding:,.2f}."
+                )
 
             c.execute("""
                 INSERT INTO payments (loan_id, amount, payment_date, payment_method, notes, created_at)
@@ -1114,6 +1324,14 @@ class Api:
             """, (loan_id, amount, payment_date, method, notes, now))
             payment_id = c.lastrowid  # Capture IMMEDIATELY after INSERT before any SELECT
             self._allocate_payment(c, loan_id, payment_id, amount)
+
+            c.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM payment_allocations WHERE payment_id = ?",
+                (payment_id,)
+            )
+            allocated = float(c.fetchone()[0])
+            if abs(allocated - amount) > 0.01:
+                raise ValueError("Payment could not be fully allocated to the loan schedule.")
 
             self._recompute_loan_status(c, loan_id)
             self._audit_event(c, "payment_recorded", "payment", payment_id, {
@@ -1438,18 +1656,43 @@ class Api:
     def add_penalty(self, loan_id, client_id, amount, reason, notes="", penalty_date=None):
         """Add a penalty (late payment, missed payment, etc.) to a loan."""
         conn = get_connection()
-        c = conn.cursor()
-        now = datetime.now().isoformat()
-        if not penalty_date:
-            penalty_date = datetime.now().strftime("%Y-%m-%d")
-        c.execute("""
-            INSERT INTO penalties (loan_id, client_id, amount, reason, notes, status, penalty_date, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
-        """, (int(loan_id), client_id, float(amount), reason, notes, penalty_date, now))
-        conn.commit()
-        penalty_id = c.lastrowid
-        conn.close()
-        return penalty_id
+        try:
+            c = conn.cursor()
+            loan_id = int(loan_id)
+            amount = float(amount)
+            reason = str(reason or "").strip().lower()
+            if not math.isfinite(amount) or amount <= 0:
+                raise ValueError("Penalty amount must be greater than zero.")
+            if reason not in {"late_payment", "missed_payment", "early_termination", "other"}:
+                raise ValueError("Invalid penalty reason.")
+            if not penalty_date:
+                penalty_date = datetime.now().strftime("%Y-%m-%d")
+            datetime.strptime(penalty_date, "%Y-%m-%d")
+            c.execute(
+                "SELECT id FROM loans WHERE id = ? AND client_id = ?",
+                (loan_id, client_id)
+            )
+            if not c.fetchone():
+                raise ValueError("Loan not found for this client.")
+            now = datetime.now().isoformat()
+            c.execute("""
+                INSERT INTO penalties
+                    (loan_id, client_id, amount, reason, notes, status, penalty_date, created_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+            """, (loan_id, client_id, amount, reason, str(notes or "").strip(), penalty_date, now))
+            penalty_id = c.lastrowid
+            self._audit_event(c, "penalty_added", "penalty", penalty_id, {
+                "loan_id": loan_id,
+                "amount": amount,
+                "reason": reason,
+            })
+            conn.commit()
+            return penalty_id
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
     def get_penalties(self, client_id=None, loan_id=None):
         """Get penalties, optionally filtered by client or loan."""
@@ -1479,12 +1722,15 @@ class Api:
 
     def update_penalty_status(self, penalty_id, status):
         """Update penalty status: pending → paid or waived."""
+        status = str(status or "").strip().lower()
+        if status not in {"pending", "paid", "waived"}:
+            return {"success": False, "error": "Invalid penalty status."}
         conn = get_connection()
         c = conn.cursor()
         c.execute("UPDATE penalties SET status = ? WHERE id = ?", (status, int(penalty_id)))
         conn.commit()
         conn.close()
-        return True
+        return {"success": True, "status": status}
 
     # ═══════════════════════════════════════════════════════════════
     # LOAN ROLLOVER / REFINANCING HELPERS
@@ -1494,7 +1740,7 @@ class Api:
         """
         Get remaining balance of a loan for rollover/renewal calculations.
         Returns dict with remaining, total_due, already_paid, months_paid,
-        monthly_payment, and can_renew (True if >= 3 payments made).
+        monthly_payment, and can_renew (True after 3 fully paid installments).
         """
         conn = get_connection()
         c = conn.cursor()
@@ -1511,9 +1757,7 @@ class Api:
                   (int(loan_id),))
         paid = c.fetchone()[0]
 
-        # Count discrete payment records (not amount-based)
-        c.execute("SELECT COUNT(*) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (int(loan_id),))
-        months_paid = c.fetchone()[0]
+        months_paid = self._fully_paid_installment_count(c, int(loan_id))
 
         remaining = max(0, total_due - paid)
         conn.close()
@@ -1545,9 +1789,13 @@ class Api:
 
     def calculate_dti(self, monthly_income, monthly_payment):
         """Calculate debt-to-income ratio as a percentage."""
-        if not monthly_income or float(monthly_income) == 0:
+        income = float(monthly_income or 0)
+        payment = float(monthly_payment or 0)
+        if not math.isfinite(income) or not math.isfinite(payment):
             return None
-        dti = (float(monthly_payment) / float(monthly_income)) * 100
+        if income <= 0 or payment < 0:
+            return None
+        dti = (payment / income) * 100
         return round(dti, 1)
 
     # ═══════════════════════════════════════════════════════════════
@@ -1887,7 +2135,7 @@ class Api:
     def get_app_info(self):
         """Get application info."""
         return {
-            "version": "1.0.0",
+            "version": "1.1.0",
             "name": "PH-Lending Pro",
             "data_dir": APP_SUPPORT_DIR,
             "db_path": get_db_path(),
@@ -2086,104 +2334,89 @@ class Api:
 
     def get_overdue_alerts(self):
         """
-        Return all clients with overdue payments (past due date, not yet paid).
-        Logic: a client is overdue when total_paid < SUM(installments due by today).
-        On-time payers with future installments remaining are NOT flagged.
+        Return active loans with installments that are past due and not fully paid.
+
+        Payment allocations are the source of truth. Dividing total payments by
+        a nominal monthly installment is incorrect for declining schedules,
+        partial payments, and loans whose remaining term was extended.
         """
         conn = get_connection()
-        c = conn.cursor()
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        # Step 1: Find loans where total paid < total scheduled by today
-        c.execute("""
-            SELECT
-                c.id         AS client_id,
-                c.first_name,
-                c.last_name,
-                c.contact,
-                c.rating,
-                l.id         AS loan_id,
-                l.principal,
-                l.interest_rate,
-                l.monthly_payment,
-                COUNT(a.id)     AS installments_due,
-                SUM(a.total_due) AS total_due_so_far,
-                COALESCE((
-                    SELECT SUM(amount)
-                    FROM payments WHERE loan_id = l.id AND voided_at IS NULL
-                ), 0) AS total_paid
-            FROM amortization_schedule a
-            JOIN loans l ON a.loan_id = l.id
-            JOIN clients c ON l.client_id = c.id
-            WHERE a.due_date <= ?
-              AND l.status   = 'active'
-            GROUP BY l.id
-            HAVING total_paid < total_due_so_far
-        """, (today,))
-
-        rows = rows_to_list(c.fetchall())
-
-        alerts = []
-        for r in rows:
-            balance_overdue = round(r['total_due_so_far'] - r['total_paid'], 2)
-            monthly  = r['monthly_payment']
-            loan_id  = r['loan_id']
-
-            # How many installments are fully covered by payments?
-            months_covered = int(r['total_paid'] / monthly) if monthly > 0 else 0
-            missed_count   = max(1, r['installments_due'] - months_covered)
-
-            # Get the actual due date of the FIRST uncovered installment from the DB
+        try:
+            c = conn.cursor()
+            today = datetime.now().strftime("%Y-%m-%d")
             c.execute("""
-                SELECT due_date FROM amortization_schedule
-                WHERE loan_id = ? AND due_date <= ?
-                ORDER BY due_date ASC
-                LIMIT 1 OFFSET ?
-            """, (loan_id, today, months_covered))
-            row2 = c.fetchone()
+                SELECT
+                    c.id AS client_id,
+                    c.first_name,
+                    c.last_name,
+                    c.contact,
+                    c.rating,
+                    l.id AS loan_id,
+                    l.principal,
+                    l.monthly_payment,
+                    a.id AS schedule_id,
+                    a.due_date,
+                    a.total_due,
+                    COALESCE(SUM(
+                        CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END
+                    ), 0) AS allocated
+                FROM amortization_schedule a
+                JOIN loans l ON l.id = a.loan_id
+                JOIN clients c ON c.id = l.client_id
+                LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                LEFT JOIN payments p ON p.id = pa.payment_id
+                WHERE a.due_date <= ?
+                  AND l.status = 'active'
+                GROUP BY a.id
+                HAVING allocated < a.total_due - 0.005
+                ORDER BY l.id, a.due_date
+            """, (today,))
 
-            if row2:
-                first_unpaid_str = row2['due_date']
-                try:
-                    first_unpaid_dt = datetime.strptime(first_unpaid_str, "%Y-%m-%d")
-                    days_overdue    = max(0, (datetime.now() - first_unpaid_dt).days)
-                except Exception:
-                    days_overdue = 0
-            else:
-                days_overdue     = 0
-                first_unpaid_str = today
+            grouped = {}
+            for row in rows_to_list(c.fetchall()):
+                alert = grouped.setdefault(row["loan_id"], {
+                    "client_id": row["client_id"],
+                    "first_name": row["first_name"],
+                    "last_name": row["last_name"],
+                    "contact": row["contact"] or "",
+                    "rating": row["rating"],
+                    "loan_id": row["loan_id"],
+                    "principal": round(row["principal"], 2),
+                    "monthly_payment": round(row["monthly_payment"], 2),
+                    "missed_count": 0,
+                    "total_overdue_amount": 0.0,
+                    "earliest_due": row["due_date"],
+                })
+                alert["missed_count"] += 1
+                alert["total_overdue_amount"] += max(
+                    0.0, float(row["total_due"]) - float(row["allocated"])
+                )
 
-            # Severity tiers
-            if days_overdue >= 60:
-                severity = 'critical'
-            elif days_overdue >= 30:
-                severity = 'high'
-            elif days_overdue >= 14:
-                severity = 'medium'
-            else:
-                severity = 'low'
+            now = datetime.now()
+            alerts = []
+            for alert in grouped.values():
+                first_unpaid = datetime.strptime(alert["earliest_due"], "%Y-%m-%d")
+                days_overdue = max(0, (now - first_unpaid).days)
+                if days_overdue >= 60:
+                    severity = "critical"
+                elif days_overdue >= 30:
+                    severity = "high"
+                elif days_overdue >= 14:
+                    severity = "medium"
+                else:
+                    severity = "low"
 
-            alerts.append({
-                'client_id':            r['client_id'],
-                'first_name':           r['first_name'],
-                'last_name':            r['last_name'],
-                'contact':              r['contact'] or '',
-                'rating':               r['rating'],
-                'loan_id':              loan_id,
-                'principal':            round(r['principal'], 2),
-                'monthly_payment':      round(monthly, 2),
-                'missed_count':         missed_count,
-                'total_overdue_amount': balance_overdue,
-                'earliest_due':         first_unpaid_str,
-                'days_overdue':         days_overdue,
-                'severity':             severity,
-            })
+                alert["total_overdue_amount"] = round(
+                    alert["total_overdue_amount"], 2
+                )
+                alert["days_overdue"] = days_overdue
+                alert["severity"] = severity
+                alerts.append(alert)
 
-        conn.close()
-
-        # Sort by most days overdue first
-        alerts.sort(key=lambda x: x['days_overdue'], reverse=True)
-        return alerts
+            alerts.sort(key=lambda item: item["days_overdue"], reverse=True)
+            return alerts
+        finally:
+            conn.close()
 
     def get_overdue_count(self):
         """Quick count of overdue loans for the sidebar badge."""

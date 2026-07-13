@@ -20,7 +20,7 @@ const HelpPage = {
                         </h5>
                         <ul class="space-y-2 text-sm text-gray-600 dark:text-slate-400">
                             <li>• <strong>Active Capital</strong> — Total sum of all active loan principals (status = active)</li>
-                            <li>• <strong>Collected Interest</strong> — Total payments received vs total expected interest</li>
+                            <li>• <strong>Collected Interest</strong> — Interest portion actually covered by recorded payments</li>
                             <li>• <strong>Default Rate</strong> — Percentage of loans marked "defaulted" out of total active</li>
                             <li>• <strong>Total Clients</strong> — Number of clients in the database</li>
                         </ul>
@@ -34,7 +34,7 @@ const HelpPage = {
                             Click a client to go directly to their loan and record a payment.
                         </p>
                         <div class="help-tip mt-2">
-                            💡 If a client doesn't pay, go to their loan → Add a penalty or mark as defaulted.
+                            <strong>Tip:</strong> If a client does not pay, open the loan to add a penalty or mark it as defaulted.
                         </div>
                     </div>
                     <div>
@@ -65,7 +65,7 @@ const HelpPage = {
                             <li>• <strong>Referred By</strong> — if this client was referred by another existing client (automatically generates a commission)</li>
                         </ul>
                         <div class="help-tip mt-2">
-                            💡 The client ID is auto-generated in the format <code>PH-YYYY-NNN</code> (e.g. PH-2026-001)
+                            <strong>Tip:</strong> The client ID is generated automatically in the format <code>PH-YYYY-NNN</code> (for example, PH-2026-001).
                         </div>
                     </div>
                     <div>
@@ -89,7 +89,7 @@ const HelpPage = {
                             <li>• <strong>"Upload"</strong> → Imports any file from the computer</li>
                         </ul>
                         <div class="help-tip mt-2">
-                            💡 If the camera doesn't work: macOS → System Preferences → Privacy → Camera → Allow PH-Lending
+                            <strong>Tip:</strong> If the camera does not work, allow PH-Lending under macOS System Settings, Privacy & Security, Camera.
                         </div>
                     </div>
                 </div>
@@ -106,14 +106,14 @@ const HelpPage = {
                         <p>Via <strong>Loans → New Loan</strong> or from the client profile → New Loan. Parameters:</p>
                         <ul class="mt-2 space-y-2 ml-4">
                             <li>• <strong>Principal (₱)</strong> — borrowed amount (capital)</li>
-                            <li>• <strong>Interest Rate (%)</strong> — rate applicable for the chosen term</li>
+                            <li>• <strong>Interest Rate (%)</strong> — choose whether the entered rate is monthly or for the full term; the contract stores the full-term rate</li>
                             <li>• <strong>Interest Type</strong>:
                                 <ul class="ml-4 mt-1 space-y-1">
                                     <li>→ <strong>Fixed Rate</strong>: interest calculated once on the total capital. Equal installments. <em>Ex: ₱10,000 at 3%/month × 6 months = ₱1,800 interest → ₱1,966.67/month</em></li>
                                     <li>→ <strong>Declining Balance</strong>: interest recalculated each month on the remaining capital. Decreasing installments.</li>
                                 </ul>
                             </li>
-                            <li>• <strong>Rate Duration</strong> (⚠️ important):
+                            <li>• <strong>Rate Duration</strong> (important):
                                 <ul class="ml-4 mt-1 space-y-1">
                                     <li>→ <strong>Per Month</strong> (recommended default): you enter the monthly rate (e.g. 3%). The system automatically multiplies by the term.</li>
                                     <li>→ <strong>Total for entire term</strong>: you enter the total rate for the entire loan term.</li>
@@ -123,7 +123,7 @@ const HelpPage = {
                             <li>• <strong>Start Date</strong> — start date; due dates are calculated automatically (month+1, month+2, etc.)</li>
                         </ul>
                         <div class="help-tip mt-2">
-                            📊 The <strong>preview</strong> updates in real-time as you type: monthly payment, total interest, total repayment amount.
+                            The <strong>preview</strong> updates in real time as you type: monthly payment, total interest, and total repayment amount.
                         </div>
                     </div>
                     <div>
@@ -141,10 +141,10 @@ const HelpPage = {
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Loan Statuses</h5>
                         <ul class="mt-2 space-y-1 ml-4">
-                            <li>• 🟢 <strong>Active</strong> — loan currently being repaid</li>
-                            <li>• 🔵 <strong>Paid</strong> — fully repaid (automatic when total paid ≥ total due)</li>
-                            <li>• 🔴 <strong>Defaulted</strong> — manually marked as defaulted ("Mark Defaulted" button)</li>
-                            <li>• 🟡 <strong>Refinanced</strong> — loan closed through a refinance</li>
+                            <li>• <strong>Active</strong> — loan currently being repaid</li>
+                            <li>• <strong>Paid</strong> — fully repaid (automatic when total paid ≥ total due)</li>
+                            <li>• <strong>Defaulted</strong> — manually marked as defaulted ("Mark Defaulted" button)</li>
+                            <li>• <strong>Refinanced</strong> — loan closed through a refinance</li>
                         </ul>
                     </div>
                 </div>
@@ -166,7 +166,7 @@ const HelpPage = {
                             <li>• <strong>Notes</strong> — reference, transaction number, etc.</li>
                         </ul>
                         <div class="help-tip mt-2">
-                            ✅ When the total payments reach or exceed the total due (principal + interest), the loan automatically switches to <strong>Paid</strong> status.
+                            When the total payments reach the total due (principal + interest), the loan automatically switches to <strong>Paid</strong> status.
                         </div>
                     </div>
                     <div>
@@ -175,7 +175,7 @@ const HelpPage = {
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Generate a PDF Receipt</h5>
-                        <p>In the loan detail, each payment has a <strong>📄</strong> button that generates a professional PDF receipt with:</p>
+                        <p>In the loan detail, each payment has a receipt button that generates a professional PDF with:</p>
                         <ul class="mt-2 space-y-1 ml-4">
                             <li>• Your company logo (if configured)</li>
                             <li>• Client information</li>
@@ -198,7 +198,7 @@ const HelpPage = {
             content: `
                 <div class="space-y-4 text-sm text-gray-600 dark:text-slate-400">
                     <div class="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800/30">
-                        <p class="font-semibold text-amber-700 dark:text-amber-400 mb-1">📋 What is refinancing?</p>
+                        <p class="font-semibold text-amber-700 dark:text-amber-400 mb-1">What is refinancing?</p>
                         <p>Refinancing allows a client to obtain a <strong>new loan</strong> before the old one is repaid. The remaining balance of the old loan is automatically <strong>added to the new loan's principal</strong>.</p>
                     </div>
                     <div>
@@ -241,7 +241,7 @@ const HelpPage = {
                         </div>
                     </div>
                     <div class="help-tip">
-                        ⚠️ Refinancing is irreversible. The old loan remains in the client history with "Refinanced" status for traceability.
+                        Refinancing is irreversible. The old loan remains in the client history with "Refinanced" status for traceability.
                     </div>
                 </div>
             `
@@ -271,11 +271,11 @@ const HelpPage = {
                             <li>• <strong>Waived</strong> (grey button) — cancelled / forgiven</li>
                         </ul>
                         <div class="help-tip mt-2">
-                            📊 Total pending penalties are shown on the client profile (orange badge) and in the profile summary.
+                            Total pending penalties are shown on the client profile and in the profile summary.
                         </div>
                     </div>
                     <div class="help-tip">
-                        ⚠️ Note: Penalties are separate fees from the loan. They do not automatically affect the loan balance — they are managed manually.
+                        Note: penalties are separate fees from the loan. They do not automatically affect the loan balance and are managed manually.
                     </div>
                 </div>
             `
@@ -300,7 +300,7 @@ const HelpPage = {
                         <p>Use the <strong>◄ ►</strong> arrows to navigate between months. Click a client in the day detail to go directly to their loan.</p>
                     </div>
                     <div class="help-tip">
-                        💡 The calendar is based on unpaid amortization installments. Fully paid installments are hidden, and partial payments show only the remaining amount to collect.
+                        <strong>Tip:</strong> The calendar is based on unpaid amortization installments. Fully paid installments are hidden, and partial payments show only the remaining amount to collect.
                     </div>
                 </div>
             `
@@ -333,7 +333,7 @@ const HelpPage = {
                         </ul>
                     </div>
                     <div class="help-tip">
-                        💡 To create a referral link: when creating the referred client, select "Referred By" in the form.
+                        <strong>Tip:</strong> To create a referral link, select "Referred By" when creating the referred client.
                     </div>
                 </div>
             `
@@ -370,7 +370,7 @@ const HelpPage = {
                         </ul>
                         <p class="mt-2">Use <strong>Restore</strong> to restore a local backup. The app creates a fresh safety backup before replacing the current profile database.</p>
                         <div class="help-tip mt-2">
-                            🔒 A backup is automatically created every time the application closes.
+                            A backup is created automatically every time the application closes.
                         </div>
                     </div>
                     <div>
@@ -397,14 +397,14 @@ const HelpPage = {
             title: 'Floating Calculator',
             content: `
                 <div class="space-y-4 text-sm text-gray-600 dark:text-slate-400">
-                    <p>The iPhone-style calculator is accessible via the <strong>🖹</strong> icon in the header (top bar). It floats above the interface.</p>
+                    <p>The calculator is accessible from the calculator icon in the header and opens above the current view.</p>
                     <ul class="space-y-1 ml-4">
                         <li>• <strong>Move</strong> — click and drag on the top bar</li>
                         <li>• <strong>Close</strong> — ✕ button top right</li>
                         <li>• Supports standard operations: +, −, ×, ÷</li>
                     </ul>
                     <div class="help-tip">
-                        💡 Use the calculator to quickly check amounts while entering data without leaving the screen.
+                        <strong>Tip:</strong> Use the calculator to check amounts while entering data without leaving the current screen.
                     </div>
                 </div>
             `
@@ -427,7 +427,7 @@ const HelpPage = {
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Payment Receipt</h5>
-                        <p>In each payment → 📄 icon. The receipt includes payment details, remaining balance, and loan information.</p>
+                        <p>Use the receipt icon on a payment to generate payment details, remaining balance, and loan information.</p>
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Print Center</h5>
@@ -475,10 +475,10 @@ const HelpPage = {
             <div class="max-w-3xl mx-auto pb-8">
 
                 <!-- Hero Banner -->
-                <div class="glass-card p-6 mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800/50 dark:to-slate-900/50 border border-blue-100 dark:border-blue-900/30">
+                <div class="glass-card p-6 mb-6 border border-blue-100 dark:border-blue-900/30">
                     <div class="flex items-center gap-4">
                         <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                             style="background: linear-gradient(135deg, var(--accent-grad-a), var(--accent-grad-b));">
+                             style="background:var(--accent);">
                             <i data-lucide="book-open" class="w-7 h-7 text-white"></i>
                         </div>
                         <div>

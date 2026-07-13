@@ -16,23 +16,23 @@ window.LogsPage = {
             <div class="page-header" style="margin-bottom: 1.5rem;">
                 <div>
                     <h1 class="page-title" style="display:flex;align-items:center;gap:0.5rem;">
-                        <span style="font-size:1.4rem;">🪵</span> Journal Système
+                        <i data-lucide="scroll-text" class="w-5 h-5"></i> System Logs
                     </h1>
                     <p class="page-subtitle">All errors and events are saved here — even after restarting</p>
                 </div>
                 <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
                     <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-secondary);cursor:pointer;">
                         <input type="checkbox" id="log-auto-refresh" style="cursor:pointer;">
-                        Auto-actualiser (10s)
+                        Auto-refresh (10s)
                     </label>
                     <button class="btn btn-secondary" id="log-open-folder-btn" onclick="LogsPage.openLogFolder()">
-                        📂 Open Folder
+                        <i data-lucide="folder-open" class="w-4 h-4"></i> Open Folder
                     </button>
                     <button class="btn btn-secondary" id="log-refresh-btn" onclick="LogsPage.loadLogs()">
-                        🔄 Actualiser
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh
                     </button>
                     <button class="btn btn-danger" id="log-clear-btn" onclick="LogsPage.clearLogs()">
-                        🗑️ Effacer les logs
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Clear Logs
                     </button>
                 </div>
             </div>
@@ -40,38 +40,38 @@ window.LogsPage = {
             <!-- Stats cards -->
             <div class="logs-stats-row" id="logs-stats-row">
                 <div class="log-stat-card">
-                    <div class="log-stat-icon">📄</div>
+                    <div class="log-stat-icon"><i data-lucide="file-text" class="w-5 h-5"></i></div>
                     <div>
                         <div class="log-stat-value" id="stat-size">—</div>
-                        <div class="log-stat-label">Taille fichier</div>
+                        <div class="log-stat-label">File Size</div>
                     </div>
                 </div>
                 <div class="log-stat-card log-stat-errors">
-                    <div class="log-stat-icon">🔴</div>
+                    <div class="log-stat-icon"><i data-lucide="circle-x" class="w-5 h-5"></i></div>
                     <div>
                         <div class="log-stat-value" id="stat-errors">—</div>
                         <div class="log-stat-label">Total Errors</div>
                     </div>
                 </div>
                 <div class="log-stat-card log-stat-warnings">
-                    <div class="log-stat-icon">🟡</div>
+                    <div class="log-stat-icon"><i data-lucide="triangle-alert" class="w-5 h-5"></i></div>
                     <div>
                         <div class="log-stat-value" id="stat-warnings">—</div>
-                        <div class="log-stat-label">Avertissements</div>
+                        <div class="log-stat-label">Warnings</div>
                     </div>
                 </div>
                 <div class="log-stat-card">
-                    <div class="log-stat-icon">📍</div>
+                    <div class="log-stat-icon"><i data-lucide="list-ordered" class="w-5 h-5"></i></div>
                     <div>
                         <div class="log-stat-value" id="stat-lines">—</div>
-                        <div class="log-stat-label">Lignes totales</div>
+                        <div class="log-stat-label">Total Lines</div>
                     </div>
                 </div>
                 <div class="log-stat-card" style="flex:1.5;">
-                    <div class="log-stat-icon">🗂️</div>
+                    <div class="log-stat-icon"><i data-lucide="folder-tree" class="w-5 h-5"></i></div>
                     <div style="overflow:hidden;">
                         <div class="log-stat-value" id="stat-path" style="font-size:0.7rem;word-break:break-all;opacity:0.7;">—</div>
-                        <div class="log-stat-label">Chemin du fichier</div>
+                        <div class="log-stat-label">Log File</div>
                     </div>
                 </div>
             </div>
@@ -79,15 +79,15 @@ window.LogsPage = {
             <!-- Filters -->
             <div class="logs-filter-bar">
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                    <button class="log-filter-btn active" data-level="ALL" onclick="LogsPage.setFilter('ALL', this)">Tous</button>
+                    <button class="log-filter-btn active" data-level="ALL" onclick="LogsPage.setFilter('ALL', this)">All</button>
                     <button class="log-filter-btn" data-level="ERROR" onclick="LogsPage.setFilter('ERROR', this)">
-                        <span class="log-badge log-badge-error">ERREUR</span>
+                        <span class="log-badge log-badge-error">ERROR</span>
                     </button>
                     <button class="log-filter-btn" data-level="CRITICAL" onclick="LogsPage.setFilter('CRITICAL', this)">
-                        <span class="log-badge log-badge-critical">CRITIQUE</span>
+                        <span class="log-badge log-badge-critical">CRITICAL</span>
                     </button>
                     <button class="log-filter-btn" data-level="WARNING" onclick="LogsPage.setFilter('WARNING', this)">
-                        <span class="log-badge log-badge-warning">AVERT.</span>
+                        <span class="log-badge log-badge-warning">WARNING</span>
                     </button>
                     <button class="log-filter-btn" data-level="INFO" onclick="LogsPage.setFilter('INFO', this)">
                         <span class="log-badge log-badge-info">INFO</span>
@@ -97,12 +97,12 @@ window.LogsPage = {
                     </button>
                 </div>
                 <div style="display:flex;align-items:center;gap:0.5rem;">
-                    <label style="font-size:0.8rem;color:var(--text-secondary);">Afficher:</label>
+                    <label style="font-size:0.8rem;color:var(--text-secondary);">Show:</label>
                     <select id="log-limit-select" style="background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;padding:4px 8px;font-size:0.82rem;" onchange="LogsPage.loadLogs()">
-                        <option value="50">50 derniers</option>
-                        <option value="200" selected>200 derniers</option>
-                        <option value="500">500 derniers</option>
-                        <option value="1000">1000 derniers</option>
+                        <option value="50">Latest 50</option>
+                        <option value="200" selected>Latest 200</option>
+                        <option value="500">Latest 500</option>
+                        <option value="1000">Latest 1000</option>
                     </select>
                 </div>
             </div>
@@ -111,11 +111,11 @@ window.LogsPage = {
             <div class="log-entries-container" id="log-entries-container">
                 <div class="loading-state" id="logs-loading">
                     <div class="spinner"></div>
-                    <p>Chargement des logs...</p>
+                    <p>Loading logs...</p>
                 </div>
                 <div id="log-entries-list" style="display:none;"></div>
                 <div class="empty-state" id="logs-empty" style="display:none;">
-                    <div style="font-size:3rem;margin-bottom:1rem;">📭</div>
+                    <i data-lucide="inbox" class="w-10 h-10 mb-4"></i>
                     <h3>No logs found</h3>
                     <p>No entries match the selected filter.</p>
                 </div>
@@ -194,7 +194,7 @@ window.LogsPage = {
                 list.style.display = 'block';
                 list.innerHTML = `<div class="log-entry log-entry-error">
                     <span class="log-badge log-badge-error">ERREUR</span>
-                    <span>Impossible de charger les logs: ${e.message || e}</span>
+                    <span>Unable to load logs: ${e.message || e}</span>
                 </div>`;
             }
         }
@@ -230,10 +230,10 @@ window.LogsPage = {
         <div class="log-entry log-entry-${levelClass}">
             <div class="log-entry-header">
                 <span class="log-badge log-badge-${levelClass}">${levelLabel}</span>
-                <span class="log-timestamp">🕐 ${entry.timestamp || ''}</span>
+                <span class="log-timestamp">${entry.timestamp || ''}</span>
                 ${entry.source ? `<span class="log-source">${entry.source}</span>` : ''}
                 <span class="log-message-text">${this.escapeHtml(firstLine)}</span>
-                ${hasTraceback ? `<button class="log-expand-btn" onclick="LogsPage.toggleTraceback('${id}')">▼ Détails</button>` : ''}
+                ${hasTraceback ? `<button class="log-expand-btn" onclick="LogsPage.toggleTraceback('${id}')">Details</button>` : ''}
             </div>
             ${hasTraceback ? `<pre class="log-traceback" id="${id}" style="display:none;">${this.escapeHtml(restLines)}</pre>` : ''}
         </div>`;
@@ -245,10 +245,10 @@ window.LogsPage = {
         const btn = el.previousElementSibling?.querySelector('.log-expand-btn');
         if (el.style.display === 'none') {
             el.style.display = 'block';
-            if (btn) btn.textContent = '▲ Masquer';
+            if (btn) btn.textContent = 'Hide';
         } else {
             el.style.display = 'none';
-            if (btn) btn.textContent = '▼ Détails';
+            if (btn) btn.textContent = 'Details';
         }
     },
 
@@ -260,17 +260,17 @@ window.LogsPage = {
     },
 
     async clearLogs() {
-        if (!confirm('Effacer tous les logs actuels ? (Les anciens fichiers de rotation sont conservés)')) return;
+        if (!confirm('Clear all current logs? Rotated log files will be preserved.')) return;
         try {
             const r = await pywebview.api.clear_logs();
             if (r?.success) {
-                showToast('Logs effacés avec succès.', 'success');
+                UI.toast('Logs cleared successfully.', 'success');
                 await this.loadLogs();
             } else {
-                showToast('Impossible d\'effacer les logs.', 'error');
+                UI.toast('Unable to clear logs.', 'error');
             }
         } catch (e) {
-            showToast('Error: ' + e, 'error');
+            UI.toast('Error: ' + e, 'error');
         }
     },
 
@@ -281,7 +281,7 @@ window.LogsPage = {
                 await pywebview.api.open_file(stats.log_dir);
             }
         } catch (e) {
-            showToast('Cannot open folder.', 'error');
+            UI.toast('Cannot open folder.', 'error');
         }
     },
 

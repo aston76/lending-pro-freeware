@@ -42,10 +42,10 @@ const AlertsPage = {
                     <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text-tertiary)">Filter:</span>
                     ${[
                 { key: 'all', label: 'All', count: counts.all, color: 'btn-ghost' },
-                { key: 'critical', label: '🔴 Critical', count: counts.critical, color: 'btn-danger' },
-                { key: 'high', label: '🟠 Urgent', count: counts.high, color: '' },
-                { key: 'medium', label: '🟡 Moderate', count: counts.medium, color: '' },
-                { key: 'low', label: '🟢 Minor', count: counts.low, color: '' },
+                { key: 'critical', label: 'Critical', count: counts.critical, color: 'btn-danger' },
+                { key: 'high', label: 'Urgent', count: counts.high, color: '' },
+                { key: 'medium', label: 'Moderate', count: counts.medium, color: '' },
+                { key: 'low', label: 'Minor', count: counts.low, color: '' },
             ].map(f => `
                         <button id="alert-filter-${f.key}" onclick="AlertsPage.setFilter('${f.key}')"
                             class="btn btn-sm ${this._filter === f.key ? 'btn-primary' : 'btn-ghost'}">
@@ -55,7 +55,7 @@ const AlertsPage = {
                     <div class="flex-1"></div>
                     ${counts.all > 0 ? `
                     <button onclick="AlertsPage.sendBulkSMS()" class="btn btn-sm"
-                        style="background:linear-gradient(135deg,#34C759,#30B0C7); color:white;">
+                        style="background:#17845b; color:white;">
                         <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
                         Bulk SMS
                     </button>` : ''}
@@ -116,10 +116,10 @@ const AlertsPage = {
 
     _alertCard(a) {
         const sev = {
-            critical: { color: '#FF2D55', bg: 'rgba(255,45,85,0.08)', border: 'rgba(255,45,85,0.25)', label: '🔴 CRITICAL', barW: '100%' },
-            high: { color: '#FF9500', bg: 'rgba(255,149,0,0.08)', border: 'rgba(255,149,0,0.25)', label: '🟠 URGENT', barW: '75%' },
-            medium: { color: '#FFCC00', bg: 'rgba(255,204,0,0.08)', border: 'rgba(255,204,0,0.25)', label: '🟡 MODERATE', barW: '50%' },
-            low: { color: '#34C759', bg: 'rgba(52,199,89,0.08)', border: 'rgba(52,199,89,0.25)', label: '🟢 MINOR', barW: '25%' },
+            critical: { color: '#FF2D55', bg: 'rgba(255,45,85,0.08)', border: 'rgba(255,45,85,0.25)', label: 'CRITICAL', barW: '100%' },
+            high: { color: '#FF9500', bg: 'rgba(255,149,0,0.08)', border: 'rgba(255,149,0,0.25)', label: 'URGENT', barW: '75%' },
+            medium: { color: '#FFCC00', bg: 'rgba(255,204,0,0.08)', border: 'rgba(255,204,0,0.25)', label: 'MODERATE', barW: '50%' },
+            low: { color: '#34C759', bg: 'rgba(52,199,89,0.08)', border: 'rgba(52,199,89,0.25)', label: 'MINOR', barW: '25%' },
         }[a.severity];
 
         const name = `${a.first_name} ${a.last_name}`;
@@ -132,14 +132,14 @@ const AlertsPage = {
         return `
             <div class="glass-card overflow-hidden" style="border: 1px solid ${sev.border}; background: ${sev.bg};">
                 <!-- Severity bar -->
-                <div style="height:3px; background: linear-gradient(90deg, ${sev.color} ${sev.barW}, transparent ${sev.barW});"></div>
+                <div style="height:3px; width:${sev.barW}; background:${sev.color};"></div>
 
                 <div class="p-4">
                     <div class="flex items-start gap-4">
                         <!-- Avatar + severity badge -->
                         <div class="relative flex-shrink-0">
                             <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-sm font-bold"
-                                 style="background: linear-gradient(135deg, ${sev.color}CC, ${sev.color}88);">
+                                 style="background:${sev.color};">
                                 ${initials}
                             </div>
                             <div class="absolute -bottom-1 -right-1 text-[10px] px-1 rounded-full font-bold"
@@ -274,13 +274,13 @@ const AlertsPage = {
 
         const firstTemplate = templates.length > 0 ? fillTemplate(templates[0].text) : '';
 
-        UI.showModal(`📱 Send SMS to ${alert.first_name} ${alert.last_name}`, `
+        UI.showModal(`Send SMS to ${alert.first_name} ${alert.last_name}`, `
             <div class="space-y-4">
                 <!-- Client info strip -->
                 <div class="flex items-center gap-3 p-3 rounded-xl"
                      style="background: var(--surface-2);">
                     <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                         style="background: linear-gradient(135deg,var(--accent),#5856D6);">
+                         style="background:var(--accent);">
                         ${alert.first_name[0]}${alert.last_name[0]}
                     </div>
                     <div class="flex-1 min-w-0">
@@ -305,7 +305,7 @@ const AlertsPage = {
                             </button>
                         `).join('')}
                         <button type="button" onclick="AlertsPage._clearSmsText()"
-                            class="btn btn-sm btn-ghost">✏️ Custom</button>
+                            class="btn btn-sm btn-ghost"><i data-lucide="pencil" class="w-3.5 h-3.5"></i>Custom</button>
                     </div>
                 </div>
 
@@ -486,22 +486,22 @@ const AlertsPage = {
         if (result.success) {
             if (method === 'phone') {
                 if (result.method === 'phone_fallback') {
-                    UI.toast('⚠️ AppleScript unavailable — Messages opened via sms://.', 'warning');
+                    UI.toast('AppleScript unavailable. Messages opened via sms://.', 'warning');
                 } else {
-                    UI.toast('✅ SMS sent via Messages.app (iPhone Continuity).', 'success');
+                    UI.toast('SMS sent via Messages.app (iPhone Continuity).', 'success');
                 }
             } else {
-                UI.toast(`✅ SMS sent via ${result.provider || 'API'}!`, 'success');
+                UI.toast(`SMS sent via ${result.provider || 'API'}.`, 'success');
             }
             SoundEngine.success();
         } else {
-            UI.toast('❌ Failed: ' + (result.error || 'Unknown error'), 'error');
+            UI.toast('Failed: ' + (result.error || 'Unknown error'), 'error');
         }
     },
 
     _copyPhone(phone) {
         navigator.clipboard.writeText(phone).then(() => {
-            UI.toast(`📋 Number copied: ${phone}`, 'success');
+            UI.toast(`Number copied: ${phone}`, 'success');
             SoundEngine.click();
         }).catch(() => UI.toast('Could not copy', 'error'));
     },
@@ -509,7 +509,7 @@ const AlertsPage = {
     _callPhone(phone) {
         const clean = phone.replace(/\s/g, '');
         window.open(`tel:${clean}`);
-        UI.toast(`📞 Calling ${phone}…`, 'info');
+        UI.toast(`Calling ${phone}...`, 'info');
     },
 
     // ─── Bulk SMS ────────────────────────────────────────────────
@@ -522,7 +522,7 @@ const AlertsPage = {
         const noPhone = filtered.length - withPhone.length;
         const templates = this._templates || [];
 
-        UI.showModal(`📱 Bulk SMS — ${filtered.length} client${filtered.length > 1 ? 's' : ''}`, `
+        UI.showModal(`Bulk SMS — ${filtered.length} client${filtered.length > 1 ? 's' : ''}`, `
             <div class="space-y-4">
                 <div class="p-3 rounded-xl" style="background: var(--surface-2);">
                     <p class="text-sm" style="color:var(--text-primary)">
@@ -559,7 +559,7 @@ const AlertsPage = {
                            style="border-color:var(--accent)">
                         <input type="radio" name="bulk-method" value="phone" checked class="accent-blue-500">
                         <div>
-                            <p class="text-sm font-semibold" style="color:var(--text-primary)">📱 iPhone (Continuity)</p>
+                            <p class="text-sm font-semibold" style="color:var(--text-primary)">iPhone (Continuity)</p>
                             <p class="text-xs" style="color:var(--text-tertiary)">Opens Messages for each client</p>
                         </div>
                     </label>
@@ -567,7 +567,7 @@ const AlertsPage = {
                            style="border-color:var(--surface-2)">
                         <input type="radio" name="bulk-method" value="api" class="accent-blue-500">
                         <div>
-                            <p class="text-sm font-semibold" style="color:var(--text-primary)">🌐 SMS API</p>
+                            <p class="text-sm font-semibold" style="color:var(--text-primary)">SMS API</p>
                             <p class="text-xs" style="color:var(--text-tertiary)">Direct automatic send</p>
                         </div>
                     </label>
@@ -626,12 +626,12 @@ const AlertsPage = {
         }
 
         if (method === 'phone') {
-            UI.toast(`✅ ${sent} SMS sent via Messages.app (iPhone Continuity). Each client has their own conversation.`, 'success');
+            UI.toast(`${sent} SMS sent via Messages.app (iPhone Continuity). Each client has their own conversation.`, 'success');
         } else {
             if (failed === 0) {
-                UI.toast(`✅ ${sent} SMS sent successfully!`, 'success');
+                UI.toast(`${sent} SMS sent successfully.`, 'success');
             } else {
-                UI.toast(`⚠️ ${sent} sent, ${failed} failed.`, 'warning');
+                UI.toast(`${sent} sent, ${failed} failed.`, 'warning');
             }
         }
         SoundEngine.success();

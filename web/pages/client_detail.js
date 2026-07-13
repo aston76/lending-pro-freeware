@@ -45,7 +45,7 @@ const ClientDetailPage = {
                     <div class="glass-card p-6 text-center">
                         <!-- Photo -->
                         <div class="relative inline-block mb-4">
-                            <div id="profile-photo" class="w-28 h-28 rounded-2xl overflow-hidden mx-auto border-4 border-white dark:border-slate-700 shadow-xl bg-gradient-to-br from-blue-100 to-indigo-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center">
+                            <div id="profile-photo" class="w-28 h-28 rounded-lg overflow-hidden mx-auto border-4 border-white dark:border-slate-700 shadow-md bg-blue-50 dark:bg-slate-700 flex items-center justify-center">
                                 ${client.photo_base64 ?
                 `<img src="${client.photo_base64}" class="w-full h-full object-cover" id="profile-img">` :
                 `<i data-lucide="user" class="w-12 h-12 text-blue-400 dark:text-slate-400"></i>`
@@ -210,7 +210,7 @@ const ClientDetailPage = {
                                         <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refinance
                                     </button>
                                 ` : `
-                                    <button onclick="UI.toast('Ce client n\'a aucun prêt actif.', 'warning')" class="btn btn-outline btn-sm opacity-50 cursor-not-allowed" style="pointer-events: auto;">
+                                    <button onclick="UI.toast('This client has no active loan.', 'warning')" class="btn btn-outline btn-sm opacity-50 cursor-not-allowed" style="pointer-events: auto;">
                                         <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refinance
                                     </button>
                                 `}
@@ -234,7 +234,7 @@ const ClientDetailPage = {
                                                 <span class="font-bold text-sm">${UI.formatCurrency(l.principal)}</span>
                                             </div>
                                             ${l.status === 'active' ? `
-                                            <button onclick="event.stopPropagation(); ClientDetailPage.showQuickPaymentForm(${l.id}, ${l.monthly_payment || 0})"
+                                            <button onclick="event.stopPropagation(); ClientDetailPage.showQuickPaymentForm(${l.id}, ${l.monthly_payment || 0}, ${Math.max(0, totalDue - paid)})"
                                                 class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white text-xs font-bold transition-all flex-shrink-0 shadow-sm"
                                                 title="Record a payment for this loan">
                                                 <i data-lucide="plus" class="w-3 h-3"></i> Pay
@@ -383,23 +383,23 @@ const ClientDetailPage = {
 
     async takePhoto() {
         UI.toast('Ouverture de la caméra...', 'info');
-        const result = await App.api('capture_photo_native', this.clientId, 'photo', 'Capture Profil (ESPACE = Prendre, ECHAP = Annuler)');
+        const result = await App.api('capture_photo_native', this.clientId, 'photo', 'Profile Photo (SPACE = Capture, ESC = Cancel)');
         if (result && result.success) {
             UI.toast(result.message || 'Profile photo updated!', 'success');
             this.render(this.clientId);
         } else if (result && result.error && result.error !== 'Capture cancelled by user.') {
-            UI.toast('Erreur: ' + result.error, 'error');
+            UI.toast('Error: ' + result.error, 'error');
         }
     },
 
     async captureIdPhoto() {
         UI.toast('Ouverture de la caméra...', 'info');
-        const result = await App.api('capture_photo_native', this.clientId, 'id', 'Capture ID (ESPACE = Prendre, ECHAP = Annuler)');
+        const result = await App.api('capture_photo_native', this.clientId, 'id', 'ID Photo (SPACE = Capture, ESC = Cancel)');
         if (result && result.success) {
             UI.toast(result.message || 'ID photo saved!', 'success');
             this.render(this.clientId);
         } else if (result && result.error && result.error !== 'Capture cancelled by user.') {
-            UI.toast('Erreur: ' + result.error, 'error');
+            UI.toast('Error: ' + result.error, 'error');
         }
     },
 
@@ -575,10 +575,11 @@ const ClientDetailPage = {
         this.render(this.clientId);
     },
 
-    showQuickPaymentForm(loanId, monthlyPayment) {
+    showQuickPaymentForm(loanId, monthlyPayment, outstandingBalance) {
         const today = new Date().toISOString().split('T')[0];
-        const suggestedAmount = monthlyPayment > 0 ? monthlyPayment : '';
-        UI.showModal('💳 Record Payment', `
+        const outstanding = Math.max(0, outstandingBalance || 0);
+        const suggestedAmount = Math.min(monthlyPayment || outstanding, outstanding);
+        UI.showModal('Record Payment', `
             <form onsubmit="ClientDetailPage.submitQuickPayment(event, ${loanId})" class="space-y-4">
                 <div class="p-3 rounded-xl bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/30">
                     <p class="text-xs text-green-700 dark:text-green-400 flex items-center gap-1.5">
@@ -589,8 +590,9 @@ const ClientDetailPage = {
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
-                    <input name="amount" type="number" class="input" required min="1" step="0.01"
+                    <input name="amount" type="number" class="input" required min="0.01" max="${outstanding}" step="0.01"
                            value="${suggestedAmount}" placeholder="Enter amount">
+                    <p class="text-xs mt-1" style="color:var(--text-tertiary)">Outstanding balance: ${UI.formatCurrency(outstanding)}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -600,10 +602,10 @@ const ClientDetailPage = {
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Method *</label>
                         <select name="method" class="input select" required>
-                            <option value="cash">💵 Cash</option>
-                            <option value="gcash">📱 GCash</option>
-                            <option value="bank_transfer">🏦 Bank Transfer</option>
-                            <option value="check">🧾 Check</option>
+                            <option value="cash">Cash</option>
+                            <option value="gcash">GCash</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="check">Check</option>
                         </select>
                     </div>
                 </div>
@@ -647,8 +649,7 @@ const ClientDetailPage = {
                 <div class="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30">
                     <p class="text-sm text-blue-700 dark:text-blue-400">
                         <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                        This will add new payment months to Loan #${loanId} starting after the last scheduled payment.
-                        The remaining balance will be spread over the additional months.
+                        The remaining balance will be spread over more installments. The contractual total and interest will not increase.
                     </p>
                 </div>
                 <form onsubmit="ClientDetailPage.submitExtendLoan(event, ${loanId})" class="space-y-4">
@@ -675,9 +676,9 @@ const ClientDetailPage = {
         const additionalMonths = parseInt(form.additional_months.value);
         UI.toast('Extending loan...', 'info');
         const result = await App.api('extend_loan', loanId, additionalMonths);
-        UI.closeModal();
         if (result && result.success) {
-            UI.toast(`Loan extended! New term: ${result.new_term} months.`, 'success');
+            UI.closeModal();
+            UI.toast(`Term extended to ${result.new_term} months. New installment: ${UI.formatCurrency(result.new_monthly_payment)}.`, 'success');
             this.render(this.clientId);
         } else {
             UI.toast('Error: ' + (result?.error || 'Unknown error'), 'error');
@@ -699,7 +700,7 @@ const ClientDetailPage = {
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
-                            <input name="amount" type="number" step="100" min="0" class="input" required placeholder="500">
+                            <input name="amount" type="number" step="100" min="0.01" class="input" required placeholder="500">
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Date *</label>
@@ -766,7 +767,7 @@ const ClientDetailPage = {
         }
 
         // Confirmation avant envoi
-        UI.showModal('📱 Tester le numéro de téléphone', `
+        UI.showModal('Test Phone Number', `
             <div class="space-y-4">
                 <div class="flex items-center gap-3 p-3 rounded-xl" style="background: var(--surface-2);">
                     <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -781,7 +782,7 @@ const ClientDetailPage = {
                 <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30">
                     <p class="text-xs text-amber-700 dark:text-amber-400">
                         <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
-                        Un SMS de test va être envoyé à ce numéro via votre iPhone (Mac Continuity).
+                        A test SMS will be sent to this number through your iPhone using Mac Continuity.
                         Assurez-vous que votre iPhone est connecté et que le relais SMS est activé.
                     </p>
                 </div>
@@ -790,7 +791,7 @@ const ClientDetailPage = {
                     <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style="color:var(--text-tertiary)">Message de test</label>
                     <textarea id="test-sms-message" rows="3"
                         class="input w-full font-mono text-sm resize-none"
-                        placeholder="Message de test…">✅ Test PH-Lending Pro — Ce numéro est bien configuré et reçoit les notifications. Merci!</textarea>
+                        placeholder="Test message">PH-Lending Pro test: this number is configured to receive notifications.</textarea>
                 </div>
 
                 <div class="flex gap-3 justify-end pt-2" style="border-top: 0.5px solid var(--surface-2);">
@@ -817,12 +818,12 @@ const ClientDetailPage = {
         const result = await App.api('send_sms_via_phone', phone, message);
         if (result && result.success) {
             if (result.method === 'phone_fallback') {
-                UI.toast('⚠️ AppleScript indisponible — Messages ouvert via sms://. Vérifiez votre iPhone.', 'warning');
+                UI.toast('AppleScript unavailable. Messages opened via sms://; check your iPhone.', 'warning');
             } else {
-                UI.toast(`✅ SMS de test envoyé avec succès à ${phone} !`, 'success');
+                UI.toast(`Test SMS sent successfully to ${phone}.`, 'success');
             }
         } else {
-            UI.toast('❌ Failed: ' + (result?.error || 'Unknown error'), 'error');
+            UI.toast('Failed: ' + (result?.error || 'Unknown error'), 'error');
         }
     },
 
@@ -844,9 +845,9 @@ const ClientDetailPage = {
                     <div>
                         <p class="text-sm font-bold text-red-600 dark:text-red-400">Renewal not yet allowed</p>
                         <p class="text-xs text-red-500 dark:text-red-400 mt-0.5">
-                            The client must have made at least <strong>3 monthly payments</strong> on the current loan before renewing.
-                            Currently: <strong>${monthsPaid}</strong> payment${monthsPaid !== 1 ? 's' : ''} recorded.
-                            <br>${3 - monthsPaid} more payment${(3 - monthsPaid) !== 1 ? 's' : ''} needed.
+                            The client must have fully paid at least <strong>3 installments</strong> on the current loan before renewing.
+                            Currently: <strong>${monthsPaid}</strong> installment${monthsPaid !== 1 ? 's' : ''} completed.
+                            <br>${3 - monthsPaid} more installment${(3 - monthsPaid) !== 1 ? 's' : ''} needed.
                         </p>
                     </div>
                 </div>` : '';
@@ -873,12 +874,12 @@ const ClientDetailPage = {
                     </div>
                     <p class="text-[10px] text-amber-600 dark:text-amber-400 mt-2">
                         <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
-                        Payments recorded: <strong>${monthsPaid}</strong> / 
+                        Installments fully paid: <strong>${monthsPaid}</strong> /
                         Monthly installment: <strong>${UI.formatCurrency(info.monthly_payment)}</strong>
                     </p>
                 </div>`;
 
-            UI.showModal('🔄 Loan Renewal', `
+            UI.showModal('Loan Renewal', `
                 ${lockBanner}
                 ${balanceBanner}
                 <form onsubmit="ClientDetailPage.submitRefinance(event, '${clientId}', ${activeLoanId})" class="space-y-4">
@@ -888,7 +889,7 @@ const ClientDetailPage = {
                                 New Total Credit (₱) *
                                 <span class="text-[10px] text-gray-400 font-normal block">Full amount of the new loan</span>
                             </label>
-                            <input name="principal" type="number" class="input" required min="1000" step="500"
+                            <input name="principal" type="number" class="input" required min="${info.remaining}" step="0.01"
                                    placeholder="15000" ${!canRenew ? 'disabled' : ''}
                                    oninput="ClientDetailPage.updateRefinancePreview(this.value, ${info.remaining})">
                         </div>
@@ -962,6 +963,7 @@ const ClientDetailPage = {
         }
 
         const cashToClient = Math.max(0, principal - deduction);
+        const insufficient = principal < deduction;
         const termInput = document.querySelector('[name="term"]');
         const term = parseInt(termInput?.value || 6);
 
@@ -978,12 +980,12 @@ const ClientDetailPage = {
                 </span>
                 <span class="font-bold text-red-500 dark:text-red-400">- ${UI.formatCurrency(deduction)}</span>
             </div>
-            <div class="flex justify-between items-center py-2 mt-1 rounded-lg bg-green-100 dark:bg-green-900/20 px-3 border border-green-200 dark:border-green-800/40">
-                <span class="font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
+            <div class="flex justify-between items-center py-2 mt-1 rounded-lg px-3 border ${insufficient ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40' : 'bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800/40'}">
+                <span class="font-bold ${insufficient ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'} flex items-center gap-1.5">
                     <i data-lucide="banknote" class="w-4 h-4"></i>
-                    Cash to give client
+                    ${insufficient ? 'Credit does not cover old balance' : 'Cash to give client'}
                 </span>
-                <span class="font-extrabold text-lg text-green-600 dark:text-green-400">${UI.formatCurrency(cashToClient)}</span>
+                <span class="font-bold text-base ${insufficient ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${UI.formatCurrency(cashToClient)}</span>
             </div>
             <p class="text-[10px] text-gray-400 dark:text-slate-500 mt-2 text-center">
                 New loan: ${UI.formatCurrency(principal)} over ${term} month${term !== 1 ? 's' : ''}, interest applied on full amount
@@ -1011,10 +1013,10 @@ const ClientDetailPage = {
             activeLoanId,
             true  // renewal_mode = True
         );
-        UI.closeModal();
         if (result && result.loan_id) {
+            UI.closeModal();
             UI.toast(
-                `✅ Renewal done! Cash given to client: ${UI.formatCurrency(result.cash_given_to_client)} — New loan: ${UI.formatCurrency(result.total_principal)}`,
+                `Renewal complete. Cash to client: ${UI.formatCurrency(result.cash_given_to_client)}. New loan: ${UI.formatCurrency(result.total_principal)}.`,
                 'success'
             );
             App.navigate('loan_detail', { id: result.loan_id });
@@ -1136,7 +1138,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'facebook',
         label: 'Facebook',
-        icon: '📘',
+        icon: 'F',
         placeholder: 'jean.dupont',
         bg: 'rgba(24,119,242,0.12)',
         color: '#1877F2',
@@ -1145,7 +1147,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'messenger',
         label: 'Messenger',
-        icon: '💬',
+        icon: 'M',
         placeholder: 'jean.dupont',
         bg: 'rgba(0,132,255,0.12)',
         color: '#0084FF',
@@ -1154,7 +1156,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'instagram',
         label: 'Instagram',
-        icon: '📸',
+        icon: 'IG',
         placeholder: 'jean_dupont',
         bg: 'rgba(225,48,108,0.12)',
         color: '#E1306C',
@@ -1163,7 +1165,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'tiktok',
         label: 'TikTok',
-        icon: '🎵',
+        icon: 'TT',
         placeholder: 'jean_dupont',
         bg: 'rgba(0,0,0,0.10)',
         color: '#010101',
@@ -1172,7 +1174,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'whatsapp',
         label: 'WhatsApp',
-        icon: '📞',
+        icon: 'WA',
         placeholder: '639171234567',
         bg: 'rgba(37,211,102,0.12)',
         color: '#25D366',
@@ -1181,7 +1183,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'viber',
         label: 'Viber',
-        icon: '📲',
+        icon: 'V',
         placeholder: '639171234567',
         bg: 'rgba(126,58,242,0.12)',
         color: '#7B519D',
@@ -1190,7 +1192,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'twitter',
         label: 'X / Twitter',
-        icon: '🐦',
+        icon: 'X',
         placeholder: 'jean_dupont',
         bg: 'rgba(29,161,242,0.12)',
         color: '#1DA1F2',
@@ -1199,7 +1201,7 @@ ClientDetailPage._SOCIAL_NETWORKS = [
     {
         id: 'linkedin',
         label: 'LinkedIn',
-        icon: '💼',
+        icon: 'in',
         placeholder: 'jean-dupont',
         bg: 'rgba(10,102,194,0.12)',
         color: '#0A66C2',

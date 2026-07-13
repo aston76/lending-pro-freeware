@@ -84,7 +84,7 @@ const SettingsPage = {
                             <div class="flex items-center justify-between px-4 py-3" style="background:var(--surface-0);">
                                 <div class="flex items-center gap-3">
                                     <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                                         style="background:linear-gradient(135deg,#FF9500,#FF6B00);">
+                                         style="background:#b7791f;">
                                         <i data-lucide="lock" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <div>
@@ -112,7 +112,7 @@ const SettingsPage = {
                             Reset Current Profile (erase all data)
                         </button>
                         <p class="text-[11px]" style="color:var(--text-tertiary)">
-                            ⚠️ Permanently deletes all data in <strong>${activeProfile.name}</strong>. Backup auto-created. You must type <code style="background:var(--surface-2); padding:1px 4px; border-radius:4px;">RESET</code> to confirm.
+                            Warning: this permanently deletes all data in <strong>${activeProfile.name}</strong>. A backup is created first. Type <code style="background:var(--surface-2); padding:1px 4px; border-radius:4px;">RESET</code> to confirm.
                         </p>
                     </div>
                 </div>
@@ -205,7 +205,7 @@ const SettingsPage = {
                     <form id="defaults-form" onsubmit="SettingsPage.saveLoanDefaults(event)" class="space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Default Interest Rate (%)</label>
+                            <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Default Monthly Interest Rate (%)</label>
                                 <input name="default_interest_rate" type="number" class="input" step="0.1" min="0" 
                                        value="${settings.default_interest_rate || '5.0'}">
                             </div>
@@ -241,7 +241,7 @@ const SettingsPage = {
                         <div class="p-4 rounded-xl border border-dashed border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-900/10">
                             <div class="flex items-center justify-between mb-3">
                                 <div class="flex items-center gap-2">
-                                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,#FF9500,#FF6B00);">
+                                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:#b7791f;">
                                         <i data-lucide="gift" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <div>
@@ -304,7 +304,7 @@ const SettingsPage = {
                         <!-- iPhone (no config needed) -->
                         <div class="flex items-center gap-3 px-4 py-3" style="background:var(--surface-0); border-bottom: 0.5px solid var(--surface-2);">
                             <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                                 style="background: linear-gradient(135deg,#34C759,#30B0C7);">
+                                 style="background:#17845b;">
                                 <i data-lucide="smartphone" class="w-4 h-4 text-white"></i>
                             </div>
                             <div class="flex-1">
@@ -319,7 +319,7 @@ const SettingsPage = {
                         <div class="px-4 py-3" style="background:var(--surface-0);">
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                                     style="background: linear-gradient(135deg,#007AFF,#5856D6);">
+                                     style="background:#1769aa;">
                                     <i data-lucide="globe" class="w-4 h-4 text-white"></i>
                                 </div>
                                 <div>
@@ -481,7 +481,7 @@ const SettingsPage = {
                         <!-- Dark / Light mode row -->
                         <div class="flex items-center justify-between px-4 py-3" style="background:var(--surface-0); border-bottom: 0.5px solid var(--surface-2);">
                             <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg,#636366,#48484A);">
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:#52606d;">
                                     <i data-lucide="moon" class="w-4 h-4 text-white"></i>
                                 </div>
                                 <div>
@@ -498,7 +498,7 @@ const SettingsPage = {
                         <!-- UI Sounds row -->
                         <div class="flex items-center justify-between px-4 py-3" style="background:var(--surface-0);">
                             <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,purple));">
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:var(--accent);">
                                     <i data-lucide="volume-2" class="w-4 h-4 text-white"></i>
                                 </div>
                                 <div>
@@ -566,11 +566,11 @@ const SettingsPage = {
                     </div>
                     ${App.isDemoMode ? `
                     <div class="mb-4 p-3 rounded-xl border" style="background:rgba(255,149,0,0.06); border-color:rgba(255,149,0,0.25);">
-                        <p class="text-xs font-bold mb-2" style="color:#FF9500;">⚠️ Demo Mode Active — test data only</p>
+                        <p class="text-xs font-bold mb-2" style="color:#FF9500;">Demo Mode Active — test data only</p>
                         <div class="flex flex-wrap gap-2">
                             <button onclick="SettingsPage.resetDemoData()"
                                 class="btn btn-sm flex items-center gap-1.5"
-                                style="background:linear-gradient(135deg,#FF9500,#FF6B00); color:white;">
+                                style="background:#b7791f; color:white;">
                                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                 Regenerate Demo Data
                             </button>
@@ -643,7 +643,7 @@ const SettingsPage = {
 
     async resetDemoData() {
         UI.confirm(
-            '🔄 Regenerate demo data?\n\nAll current demo data will be erased and replaced with new scenarios including overdue clients (4 severity levels).',
+            'Regenerate demo data?\n\nAll current demo data will be erased and replaced with new scenarios including overdue clients (4 severity levels).',
             async () => {
                 // Show loading toast
                 UI.toast('Regenerating demo data…', 'info');
@@ -662,11 +662,11 @@ const SettingsPage = {
                     // Refresh the alert badge
                     await App.refreshAlertsBadge();
                     // Navigate to alerts to see the result
-                    UI.toast('✅ Demo data regenerated! 10 overdue clients created.', 'success');
+                    UI.toast('Demo data regenerated. 10 overdue clients created.', 'success');
                     SoundEngine.success();
                     setTimeout(() => App.navigate('alerts'), 600);
                 } else {
-                    UI.toast('❌ Error: ' + (result.error || 'Unknown'), 'error');
+                    UI.toast('Error: ' + (result.error || 'Unknown'), 'error');
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Regenerate Demo Data';
@@ -766,8 +766,8 @@ const SettingsPage = {
                     <div class="flex flex-wrap gap-2">
                         <button type="button" onclick="SettingsPage._selectAllSheets(true)" class="btn btn-outline btn-sm">✓ Select All</button>
                         <button type="button" onclick="SettingsPage._selectAllSheets(false)" class="btn btn-ghost btn-sm">✕ Deselect All</button>
-                        <button type="button" onclick="SettingsPage._presetFinancial()" class="btn btn-ghost btn-sm">💰 Financial Only</button>
-                        <button type="button" onclick="SettingsPage._presetClients()" class="btn btn-ghost btn-sm">👥 Clients Only</button>
+                        <button type="button" onclick="SettingsPage._presetFinancial()" class="btn btn-ghost btn-sm"><i data-lucide="banknote" class="w-3.5 h-3.5"></i>Financial Only</button>
+                        <button type="button" onclick="SettingsPage._presetClients()" class="btn btn-ghost btn-sm"><i data-lucide="users" class="w-3.5 h-3.5"></i>Clients Only</button>
                     </div>
                 </div>
 
@@ -804,7 +804,7 @@ const SettingsPage = {
                             <input type="date" id="export-date-to" class="input text-sm" value="${new Date().toISOString().split('T')[0]}">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">⚠️ Leave blank to export all data regardless of date.</p>
+                    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Leave blank to export all data regardless of date.</p>
                 </div>
 
                 <div class="flex gap-3 justify-end pt-2 border-t border-gray-100 dark:border-slate-700/50">
@@ -981,7 +981,7 @@ const SettingsPage = {
     toggleSounds(enabled) {
         SoundEngine.setEnabled(enabled);
         SoundEngine.toggle();
-        UI.toast(enabled ? '🔊 UI Sounds enabled' : '🔇 UI Sounds disabled', 'info');
+        UI.toast(enabled ? 'UI sounds enabled.' : 'UI sounds disabled.', 'info');
     },
 
     previewSound() {
@@ -1008,7 +1008,7 @@ const SettingsPage = {
             sms_account_sid: form.sms_account_sid?.value || '',
             sms_from_number: form.sms_from_number?.value || '',
         });
-        UI.toast('✅ SMS API configuration saved!', 'success');
+        UI.toast('SMS API configuration saved.', 'success');
         SoundEngine.save();
     },
 
@@ -1047,7 +1047,7 @@ const SettingsPage = {
             templates[index].text = text;
         }
         await App.api('save_sms_templates', templates);
-        UI.toast('✅ Template saved!', 'success');
+        UI.toast('Template saved.', 'success');
         SoundEngine.save();
     },
 
@@ -1254,7 +1254,7 @@ const SettingsPage = {
         if (!allowed) return;
 
         UI.confirm(
-            `🗑️ Delete profile "${profileName}"?\n\nThis will permanently delete its database and all data. This cannot be undone.`,
+            `Delete profile "${profileName}"?\n\nThis will permanently delete its database and all data. This cannot be undone.`,
             async () => {
                 UI.toast('Deleting profile...', 'info');
                 const result = await App.api('delete_existing_profile', profileId);
@@ -1279,7 +1279,7 @@ const SettingsPage = {
         const name = active ? active.name : 'Current Profile';
 
         // Show "type RESET" confirmation modal
-        UI.showModal('⚠️ Reset Profile Data', `
+        UI.showModal('Reset Profile Data', `
             <div class="space-y-4">
                 <div class="p-3 rounded-xl" style="background:rgba(255,59,48,0.06); border:1px solid rgba(255,59,48,0.2);">
                     <p class="text-sm font-semibold" style="color:var(--apple-red)">
@@ -1294,8 +1294,8 @@ const SettingsPage = {
                 </div>
                 <div class="p-3 rounded-xl" style="background:rgba(52,199,89,0.06); border:1px solid rgba(52,199,89,0.2);">
                     <p class="text-xs" style="color:#1A8F3A">
-                        ✅ A backup will be created automatically before reset.<br>
-                        ✅ Company settings, SMS config, and preferences are preserved.
+                        A backup will be created automatically before reset.<br>
+                        Company settings, SMS configuration, and preferences are preserved.
                     </p>
                 </div>
                 <div>
@@ -1340,15 +1340,15 @@ const SettingsPage = {
             return;
         }
         UI.closeModal();
-        UI.toast('🔄 Creating backup and resetting...', 'info');
+        UI.toast('Creating backup and resetting...', 'info');
         const result = await App.api('reset_current_profile');
         if (result.success) {
             SoundEngine.success();
-            UI.toast('✅ Profile reset complete! All data erased.', 'success');
+            UI.toast('Profile reset complete. All data erased.', 'success');
             await App.refreshAlertsBadge();
             App.navigate('dashboard');
         } else {
-            UI.toast('❌ Error: ' + (result.error || 'Unknown'), 'error');
+            UI.toast('Error: ' + (result.error || 'Unknown'), 'error');
         }
     },
 
@@ -1365,7 +1365,7 @@ const SettingsPage = {
         if (!isProtected) return true; // No password set, allow
 
         return new Promise(resolve => {
-            UI.showModal('🔒 Password Required', `
+            UI.showModal('Password Required', `
                 <div class="space-y-4">
                     <p class="text-sm" style="color:var(--text-secondary)">
                         Enter your password to <strong>${actionName}</strong>.
@@ -1374,7 +1374,7 @@ const SettingsPage = {
                            placeholder="Enter password" autocomplete="off"
                            onkeydown="if(event.key==='Enter') document.getElementById('password-check-btn').click()">
                     <p id="password-check-error" class="text-xs text-center hidden" style="color:var(--apple-red)">
-                        ❌ Wrong password. Try again.
+                        Wrong password. Try again.
                     </p>
                     <div class="flex gap-3 justify-end pt-2" style="border-top:0.5px solid var(--surface-2);">
                         <button onclick="UI.closeModal(); SettingsPage._pwResolve && SettingsPage._pwResolve(false);" class="btn btn-ghost">Cancel</button>
@@ -1429,13 +1429,13 @@ const SettingsPage = {
             await App.api('remove_profile_password');
             const configBtn = document.getElementById('password-config-btn');
             if (configBtn) configBtn.style.display = 'none';
-            UI.toast('🔓 Password protection disabled.', 'info');
+            UI.toast('Password protection disabled.', 'info');
             SoundEngine.toggle();
         }
     },
 
     showPasswordSetup() {
-        UI.showModal('🔒 Set Password', `
+        UI.showModal('Set Password', `
             <div class="space-y-4">
                 <p class="text-sm" style="color:var(--text-secondary)">
                     This password will be required for dangerous actions: reset data, delete profile, switch profile.
@@ -1490,7 +1490,7 @@ const SettingsPage = {
             const configBtn = document.getElementById('password-config-btn');
             if (configBtn) configBtn.style.display = '';
             SoundEngine.success();
-            UI.toast('🔒 Password protection enabled!', 'success');
+            UI.toast('Password protection enabled.', 'success');
         } else {
             UI.toast('Error: ' + (result.error || 'Unknown'), 'error');
         }

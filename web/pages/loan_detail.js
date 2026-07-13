@@ -4,6 +4,7 @@
  */
 const LoanDetailPage = {
     loanId: null,
+    loan: null,
 
     async render(loanId) {
         this.loanId = loanId;
@@ -14,6 +15,7 @@ const LoanDetailPage = {
             content.innerHTML = UI.emptyState('file-x', 'Loan Not Found', 'This loan does not exist.');
             return;
         }
+        this.loan = loan;
 
         document.getElementById('page-title').textContent = `Loan #${loan.id}`;
         document.getElementById('page-subtitle').textContent = `${loan.first_name} ${loan.last_name} — ${loan.client_id}`;
@@ -28,7 +30,7 @@ const LoanDetailPage = {
                 </button>
                 <div class="flex gap-2 flex-wrap">
                     <button onclick="PrintManager.printLoanDetail(LoanDetailPage.loanId)" class="btn btn-ghost btn-sm">
-                        <i data-lucide="printer" class="w-4 h-4"></i> Imprimer
+                        <i data-lucide="printer" class="w-4 h-4"></i> Print
                     </button>
                     <button onclick="PrintManager.openContractPdf(LoanDetailPage.loanId)" class="btn btn-outline btn-sm">
                         <i data-lucide="file-text" class="w-4 h-4"></i> PDF Contract
@@ -47,7 +49,7 @@ const LoanDetailPage = {
             <!-- Loan Summary -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stagger">
                 ${UI.statCard('banknote', 'Principal', UI.formatCurrency(loan.principal), 'blue')}
-                ${UI.statCard('percent', 'Total Interest', UI.formatCurrency(loan.total_interest), 'amber', `${loan.interest_rate}% ${loan.interest_type}`)}
+                ${UI.statCard('percent', 'Total Interest', UI.formatCurrency(loan.total_interest), 'amber', `${(loan.interest_rate / (loan.original_term_months || loan.term_months)).toFixed(2)}% monthly · ${loan.interest_rate}% term`)}
                 ${UI.statCard('check-circle', 'Total Paid', UI.formatCurrency(loan.total_paid), 'green', `${paidPct}% complete`)}
                 ${UI.statCard('clock', 'Remaining', UI.formatCurrency(loan.remaining), loan.remaining <= 0 ? 'green' : 'red', `${loan.term_months} month term`)}
             </div>
@@ -62,7 +64,7 @@ const LoanDetailPage = {
                     </div>
                 </div>
                 <div class="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3">
-                    <div class="h-3 rounded-full transition-all duration-500 ${loan.status === 'paid' ? 'bg-gradient-to-r from-green-400 to-emerald-500' : loan.status === 'defaulted' ? 'bg-gradient-to-r from-red-400 to-rose-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'}"
+                    <div class="h-3 rounded-full transition-all duration-500 ${loan.status === 'paid' ? 'bg-green-500' : loan.status === 'defaulted' ? 'bg-red-500' : 'bg-blue-500'}"
                          style="width: ${paidPct}%"></div>
                 </div>
                 <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
@@ -158,7 +160,7 @@ const LoanDetailPage = {
                                             <button onclick="event.stopPropagation(); PrintManager.openReceiptPdf(${p.id})" class="btn btn-ghost btn-sm" title="Prévisualiser reçu PDF">
                                                 <i data-lucide="eye" class="w-4 h-4"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); LoanDetailPage.generateReceipt(${p.id})" class="btn btn-ghost btn-sm" title="Ouvrir dans Aperçu">
+                                            <button onclick="event.stopPropagation(); LoanDetailPage.generateReceipt(${p.id})" class="btn btn-ghost btn-sm" title="Open receipt preview">
                                                 <i data-lucide="file-text" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="event.stopPropagation(); LoanDetailPage.showVoidPaymentModal(${p.id}, ${Number(p.amount || 0)})" class="btn btn-ghost btn-sm text-red-500" title="Void payment">
@@ -191,11 +193,15 @@ const LoanDetailPage = {
 
     showPaymentForm() {
         const today = new Date().toISOString().split('T')[0];
+        const outstanding = Math.max(0, this.loan?.remaining || 0);
+        const suggested = Math.min(this.loan?.monthly_payment || outstanding, outstanding);
         UI.showModal('Record Payment', `
             <form onsubmit="LoanDetailPage.submitPayment(event)" class="space-y-4">
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
-                    <input name="amount" type="number" class="input" required min="1" step="0.01" placeholder="Enter amount">
+                    <input name="amount" type="number" class="input" required min="0.01" max="${outstanding}" step="0.01"
+                           value="${suggested || ''}" placeholder="Enter amount">
+                    <p class="text-xs mt-1" style="color:var(--text-tertiary)">Outstanding balance: ${UI.formatCurrency(outstanding)}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -205,10 +211,10 @@ const LoanDetailPage = {
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Method *</label>
                         <select name="method" class="input select" required>
-                            <option value="cash">💵 Cash</option>
-                            <option value="gcash">📱 GCash</option>
-                            <option value="bank_transfer">🏦 Bank Transfer</option>
-                            <option value="check">🧾 Check</option>
+                            <option value="cash">Cash</option>
+                            <option value="gcash">GCash</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="check">Check</option>
                         </select>
                     </div>
                 </div>
@@ -284,22 +290,22 @@ const LoanDetailPage = {
     },
 
     async generateContract() {
-        UI.toast('Génération du contrat PDF…', 'info');
+        UI.toast('Generating PDF contract...', 'info');
         const result = await App.api('generate_contract', this.loanId);
         if (result.success) {
-            UI.toast('Contrat PDF ouvert ! Sauvegardé : ' + result.filename, 'success');
+            UI.toast('PDF contract opened and saved as ' + result.filename, 'success');
         } else {
-            UI.toast('Erreur PDF : ' + result.error, 'error');
+            UI.toast('PDF error: ' + result.error, 'error');
         }
     },
 
     async generateReceipt(paymentId) {
-        UI.toast('Génération du reçu…', 'info');
+        UI.toast('Generating receipt...', 'info');
         const result = await App.api('generate_receipt', paymentId);
         if (result.success) {
-            UI.toast('Reçu PDF ouvert ! Sauvegardé : ' + result.filename, 'success');
+            UI.toast('PDF receipt opened and saved as ' + result.filename, 'success');
         } else {
-            UI.toast('Erreur PDF : ' + result.error, 'error');
+            UI.toast('PDF error: ' + result.error, 'error');
         }
     },
 
@@ -317,7 +323,7 @@ const LoanDetailPage = {
                 <div class="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30">
                     <p class="text-sm text-blue-700 dark:text-blue-400">
                         <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                        Adds new payment months after the last scheduled date using the remaining balance.
+                        Spreads the remaining balance over more installments. The contractual total and interest do not increase.
                     </p>
                 </div>
                 <form onsubmit="LoanDetailPage.submitExtend(event)" class="space-y-4">
@@ -342,9 +348,9 @@ const LoanDetailPage = {
         const months = parseInt(e.target.months.value);
         UI.toast('Extending loan...', 'info');
         const result = await App.api('extend_loan', this.loanId, months);
-        UI.closeModal();
         if (result && result.success) {
-            UI.toast(`Loan extended by ${months} months. New term: ${result.new_term} months.`, 'success');
+            UI.closeModal();
+            UI.toast(`Term extended to ${result.new_term} months. New installment: ${UI.formatCurrency(result.new_monthly_payment)}.`, 'success');
             this.render(this.loanId);
         } else {
             UI.toast('Error: ' + (result?.error || 'Unknown'), 'error');

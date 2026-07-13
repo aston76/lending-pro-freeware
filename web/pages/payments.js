@@ -121,7 +121,7 @@ const PaymentsPage = {
                                     </td>
                                     <td>
                                         <div class="flex items-center gap-2">
-                                            <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                                            <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                                                 ${p.first_name[0]}${p.last_name[0]}
                                             </div>
                                             <div class="min-w-0">

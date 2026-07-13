@@ -1,7 +1,7 @@
 /**
  * PH-Lending Pro — PrintManager
  * Système d'impression contextuel intelligent.
- * - Bouton 🖨️ dans le header — adapte son action selon la page active
+ * - Bouton d'impression dans le header — adapte son action selon la page active
  * - Visualisateur PDF grand format (plein écran) intégré à l'app
  * - Génère les bons PDFs selon le contexte (amortissement, client, reçu…)
  */
@@ -28,7 +28,7 @@ const PrintManager = {
                 if (window.ClientDetailPage && ClientDetailPage.clientId) {
                     ClientDetailPage.openPrintCenter();
                 } else {
-                    UI.toast('Naviguez vers une fiche client pour imprimer', 'info');
+                    UI.toast('Open a client profile to print client documents.', 'info');
                 }
                 break;
 
@@ -65,7 +65,7 @@ const PrintManager = {
 
     // ─── Loan Detail : menu choix impression ─────────────────────
     async printLoanDetail(loanId) {
-        if (!loanId) { UI.toast('Aucun prêt sélectionné', 'warning'); return; }
+        if (!loanId) { UI.toast('No loan selected.', 'warning'); return; }
 
         // Petit menu contextuel
         const menuHtml = `
@@ -76,8 +76,8 @@ const PrintManager = {
                         <i data-lucide="calendar-range" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                     </div>
                     <div>
-                        <p class="font-semibold text-sm text-gray-800 dark:text-white">Tableau d'amortissement</p>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Calendrier complet des échéances</p>
+                        <p class="font-semibold text-sm text-gray-800 dark:text-white">Amortization Schedule</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Complete installment schedule</p>
                     </div>
                     <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 ml-auto"></i>
                 </button>
@@ -87,19 +87,19 @@ const PrintManager = {
                         <i data-lucide="file-signature" class="w-4 h-4 text-purple-600 dark:text-purple-400"></i>
                     </div>
                     <div>
-                        <p class="font-semibold text-sm text-gray-800 dark:text-white">Contrat de prêt</p>
-                        <p class="text-xs text-gray-400 dark:text-slate-500">Contrat officiel signable</p>
+                        <p class="font-semibold text-sm text-gray-800 dark:text-white">Loan Contract</p>
+                        <p class="text-xs text-gray-400 dark:text-slate-500">Official contract ready for signature</p>
                     </div>
                     <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 ml-auto"></i>
                 </button>
             </div>
         `;
-        UI.showModal('🖨️ Impression — Prêt #' + loanId, menuHtml, { width: 'max-w-sm' });
+        UI.showModal('Print Loan #' + loanId, menuHtml, { width: 'max-w-sm' });
     },
 
     // ─── Générer + Prévisualiser : Tableau d'amortissement ────────
     async openAmortizationPdf(loanId) {
-        this._showPdfViewer(`Amortissement — Prêt #${loanId}`, 'Tableau des échéances');
+        this._showPdfViewer(`Amortization — Loan #${loanId}`, 'Installment Schedule');
         try {
             const result = await App.api('generate_amortization_pdf', loanId);
             if (result.success) {
@@ -114,7 +114,7 @@ const PrintManager = {
 
     // ─── Générer + Prévisualiser : Contrat ───────────────────────
     async openContractPdf(loanId) {
-        this._showPdfViewer(`Contrat — Prêt #${loanId}`, 'Contrat de prêt');
+        this._showPdfViewer(`Contract — Loan #${loanId}`, 'Loan Contract');
         try {
             const result = await App.api('generate_contract_preview', loanId);
             if (result.success) {
@@ -129,7 +129,7 @@ const PrintManager = {
 
     // ─── Générer + Prévisualiser : Reçu de paiement ──────────────
     async openReceiptPdf(paymentId, loanId) {
-        this._showPdfViewer(`Reçu — Paiement #${paymentId}`, 'Reçu de paiement');
+        this._showPdfViewer(`Receipt — Payment #${paymentId}`, 'Payment Receipt');
         try {
             const result = await App.api('generate_receipt_preview', paymentId);
             if (result.success) {
@@ -144,33 +144,33 @@ const PrintManager = {
 
     // ─── Dashboard : impression HTML ─────────────────────────────
     async printDashboard() {
-        UI.toast('Impression du tableau de bord…', 'info');
+        UI.toast('Preparing dashboard print view...', 'info');
         window.print();
     },
 
     // ─── Listes : impression HTML de la vue ──────────────────────
     async printClientsList() {
-        UI.toast('Impression de la liste clients…', 'info');
+        UI.toast('Preparing client list print view...', 'info');
         window.print();
     },
 
     async printLoansList() {
-        UI.toast('Impression de la liste des prêts…', 'info');
+        UI.toast('Preparing loan list print view...', 'info');
         window.print();
     },
 
     async printPaymentsList() {
-        UI.toast('Impression des paiements…', 'info');
+        UI.toast('Preparing payment print view...', 'info');
         window.print();
     },
 
     async printCalendar() {
-        UI.toast('Impression du calendrier…', 'info');
+        UI.toast('Preparing collection calendar print view...', 'info');
         window.print();
     },
 
     async printAlerts() {
-        UI.toast('Impression des alertes…', 'info');
+        UI.toast('Preparing alerts print view...', 'info');
         window.print();
     },
 
@@ -234,9 +234,9 @@ const PrintManager = {
         const loading = document.getElementById('pdf-viewer-loading');
         loading.innerHTML = `
             <i data-lucide="alert-circle" class="w-12 h-12 text-red-400 mb-3"></i>
-            <p class="text-white font-semibold">Erreur de génération PDF</p>
-            <p class="text-white/60 text-sm mt-1">${msg || 'Erreur inconnue'}</p>
-            <button onclick="PrintManager.closePdfViewer()" class="mt-4 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition">Fermer</button>
+            <p class="text-white font-semibold">PDF Generation Error</p>
+            <p class="text-white/60 text-sm mt-1">${msg || 'Unknown error'}</p>
+            <button onclick="PrintManager.closePdfViewer()" class="mt-4 px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 transition">Close</button>
         `;
         lucide.createIcons();
     },
@@ -281,7 +281,7 @@ const PrintManager = {
     downloadCurrentPdf() {
         if (this._currentPdfPath) {
             App.api('open_file', this._currentPdfPath);
-            UI.toast('PDF ouvert dans Aperçu', 'success');
+            UI.toast('PDF opened in Preview.', 'success');
             SoundEngine.success();
         }
     },

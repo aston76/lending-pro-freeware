@@ -10,6 +10,7 @@ import threading
 import socketserver
 import http.server
 import time
+from pathlib import Path
 import webview
 import logger  # persistent error logger
 from database import init_database, load_active_profile
@@ -42,13 +43,17 @@ def start_local_server(web_dir, port=34001):
             super().end_headers()
 
     socketserver.TCPServer.allow_reuse_address = True
-    try:
-        httpd = socketserver.TCPServer(("127.0.0.1", port), Handler)
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        return f"http://127.0.0.1:{port}/index.html?startup={int(time.time())}"
-    except Exception as e:
-        print(f"Server start failed on {port}: {e}")
-        return os.path.join(web_dir, 'index.html')
+    last_error = None
+    for candidate_port in (port, 0):
+        try:
+            httpd = socketserver.TCPServer(("127.0.0.1", candidate_port), Handler)
+            actual_port = int(httpd.server_address[1])
+            threading.Thread(target=httpd.serve_forever, daemon=True).start()
+            return f"http://127.0.0.1:{actual_port}/index.html?startup={int(time.time())}"
+        except OSError as e:
+            last_error = e
+    logger.warning("Local web server unavailable; using file fallback: %s", last_error)
+    return Path(web_dir, "index.html").resolve().as_uri()
 
 
 def get_web_dir():
@@ -91,7 +96,7 @@ def main():
         height=900,
         min_size=(900, 600),
         text_select=True,
-        background_color='#0f172a'
+        background_color='#101419'
     )
 
     # Pass window ref to api so it can trigger close from JS

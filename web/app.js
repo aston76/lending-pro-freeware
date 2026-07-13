@@ -302,7 +302,7 @@ const App = {
             loan_detail: ['Loan Details', 'View loan schedule and payments'],
             payments: ['Payments', 'Track all payment transactions'],
             calendar: ['Collection Calendar', "Today's and upcoming collections"],
-            alerts: ['🔔 Overdue Alerts', 'Late paying clients & SMS notifications'],
+            alerts: ['Overdue Alerts', 'Late paying clients & SMS notifications'],
             commissions: ['Referral Commissions', 'Track referral earnings'],
             settings: ['Settings', 'Application configuration and backup'],
             help: ['Help & User Guide', 'Complete guide to using PH-Lending Pro'],
@@ -404,7 +404,7 @@ const App = {
     quickToggleSound() {
         SoundEngine.setEnabled(!SoundEngine.enabled);
         if (SoundEngine.enabled) SoundEngine.success();
-        UI.toast(SoundEngine.enabled ? '🔊 Sounds On' : '🔇 Sounds Off', 'info');
+        UI.toast(SoundEngine.enabled ? 'Sounds on.' : 'Sounds off.', 'info');
         // Update settings toggle if visible
         const toggle = document.getElementById('sounds-toggle');
         if (toggle) toggle.checked = SoundEngine.enabled;
@@ -537,7 +537,7 @@ const App = {
         disp.value = val;
         // Adaptive font size based on length
         const len = val.replace('-', '').length;
-        disp.style.fontSize = len <= 8 ? '70px' : len <= 10 ? '50px' : len <= 13 ? '38px' : '26px';
+        disp.style.fontSize = len <= 8 ? '48px' : len <= 10 ? '38px' : len <= 13 ? '30px' : '24px';
         // AC vs C label
         if (acBtn) acBtn.textContent = this.calcExpression ? 'C' : 'AC';
     },
@@ -568,7 +568,7 @@ const App = {
                     SoundEngine.save();
                 } catch (e) {
                     const disp = document.getElementById('calc-display');
-                    if (disp) { disp.value = 'Error'; disp.style.fontSize = '48px'; }
+                    if (disp) { disp.value = 'Error'; disp.style.fontSize = '32px'; }
                     this.calcExpression = '';
                     this.calcLastResult = false;
                     SoundEngine.error();
