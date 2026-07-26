@@ -700,7 +700,7 @@ const ClientDetailPage = {
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
-                            <input name="amount" type="number" step="100" min="0.01" class="input" required placeholder="500">
+                            <input name="amount" type="number" step="0.01" min="0.01" inputmode="decimal" class="input" required placeholder="500.00">
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Date *</label>
@@ -732,7 +732,7 @@ const ClientDetailPage = {
     async submitPenalty(e, clientId) {
         e.preventDefault();
         const form = e.target;
-        await App.api('add_penalty',
+        const result = await App.api('add_penalty',
             parseInt(form.loan_id.value),
             clientId,
             parseFloat(form.amount.value),
@@ -740,6 +740,10 @@ const ClientDetailPage = {
             form.notes.value,
             form.penalty_date.value
         );
+        if (result && typeof result === 'object' && result.success === false) {
+            UI.toast(result.error || 'Unable to add the penalty.', 'error');
+            return;
+        }
         UI.closeModal();
         UI.toast('Penalty added!', 'warning');
         this.render(this.clientId);

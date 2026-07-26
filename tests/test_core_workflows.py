@@ -456,7 +456,7 @@ def test_financial_pdfs_render_with_explicit_rate_semantics(tmp_path, monkeypatc
         assert base64.b64decode(pdf_data).startswith(b"%PDF")
 
 
-def test_demo_distribution_is_isolated_and_cannot_be_disabled(tmp_path, monkeypatch):
+def test_demo_distribution_exits_to_persisted_empty_database(tmp_path, monkeypatch):
     monkeypatch.setenv("PH_LENDING_DEMO_ONLY", "1")
     api_obj, _, database, _ = fresh_api(tmp_path, monkeypatch)
 
@@ -464,16 +464,47 @@ def test_demo_distribution_is_isolated_and_cannot_be_disabled(tmp_path, monkeypa
     assert mode == {
         "name": "PH-Lending Pro Demo",
         "demo_only": True,
+        "demo_edition": True,
         "demo_active": True,
     }
     assert api_obj.get_demo_status() is True
     assert api_obj.get_profiles() == []
-    assert api_obj.toggle_demo_mode(False)["success"] is False
     assert api_obj.restore_backup("anything")["success"] is False
     assert api_obj.create_new_profile("Private")["success"] is False
     assert database.get_db_path().endswith("PH-Lending Demo/phlending_demo.db")
     assert not os.path.exists(os.path.join(database.APP_SUPPORT_DIR, "phlending.db"))
     assert len(api_obj.get_all_clients_simple()) > 0
+
+    switched = api_obj.toggle_demo_mode(False)
+    assert switched == {
+        "success": True,
+        "demo_active": False,
+        "demo_only": False,
+        "demo_edition": True,
+    }
+    assert database.get_db_path().endswith("PH-Lending Demo/phlending.db")
+    assert api_obj.get_all_clients_simple() == []
+
+    restarted, _, restarted_database, _ = fresh_api(tmp_path, monkeypatch)
+    assert restarted.get_demo_status() is False
+    assert restarted.get_app_mode()["demo_only"] is False
+    assert restarted_database.get_db_path().endswith("PH-Lending Demo/phlending.db")
+    assert restarted.get_all_clients_simple() == []
+
+
+def test_penalty_accepts_regular_currency_amount(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    loan = api_obj.create_loan(client_id, 20000, 10, "fixed", 6, "2026-01-01")
+
+    penalty_id = api_obj.add_penalty(
+        loan["loan_id"], client_id, 2500, "missed_payment", "test", "2026-07-26"
+    )
+
+    assert isinstance(penalty_id, int)
+    penalties = api_obj.get_penalties(client_id=client_id)
+    assert penalties[0]["id"] == penalty_id
+    assert penalties[0]["amount"] == 2500
 
 
 def test_shutdown_stops_local_server_once(tmp_path, monkeypatch):

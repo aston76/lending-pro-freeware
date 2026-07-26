@@ -5,7 +5,7 @@ import os
 
 
 os.environ.setdefault("PH_LENDING_DEMO_ONLY", "1")
-os.environ.setdefault("PH_LENDING_APP_NAME", "PH-Lending Pro Demo")
+os.environ.setdefault("PH_LENDING_APP_NAME", "PH-Lending Pro")
 os.environ.setdefault("PH_LENDING_DATA_FOLDER", "PH-Lending Demo")
 
 from main import main

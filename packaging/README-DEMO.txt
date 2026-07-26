@@ -5,7 +5,10 @@ Installation
 2. Drag PH-Lending Pro Demo into Applications.
 3. Open the app from Applications.
 
-This edition contains demo data only. It creates its own isolated database in:
+The app starts with fictitious demo data. Click "Use my own data" beside the
+DEMO DATA label to switch to a new empty database. This choice is remembered.
+
+The demo and personal databases stay isolated in:
 ~/Library/Application Support/PH-Lending Demo
 
 The Quit App button closes the window and its local background server.

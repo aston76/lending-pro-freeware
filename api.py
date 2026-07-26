@@ -43,6 +43,7 @@ from backup import (
 )
 
 PDF_DIR = os.path.join(APP_SUPPORT_DIR, "pdfs")
+DEMO_EDITION_STATE = os.path.join(APP_SUPPORT_DIR, "demo_edition_state.json")
 os.makedirs(PDF_DIR, exist_ok=True)
 
 VALID_PAYMENT_METHODS = {"cash", "gcash", "bank_transfer", "check"}
@@ -191,18 +192,40 @@ class Api:
 
     def __init__(self):
         self._demo_only = DEMO_ONLY
-        self._is_demo = DEMO_ONLY
+        self._is_demo = DEMO_ONLY and self._load_demo_edition_state()
         self._window = None
         self._server = None
         self._shutdown_started = False
         self._shutdown_lock = threading.Lock()
-        if DEMO_ONLY:
+        if self._is_demo:
             set_demo_mode(True)
         else:
             load_active_profile()
+            set_demo_mode(False)
         init_database()
-        if DEMO_ONLY:
+        if self._is_demo:
             self._ensure_demo_data()
+
+    def _load_demo_edition_state(self):
+        """Return whether this distribution should start with demo data."""
+        if not os.path.exists(DEMO_EDITION_STATE):
+            return True
+        try:
+            with open(DEMO_EDITION_STATE, "r", encoding="utf-8") as handle:
+                return bool(json.load(handle).get("demo_active", True))
+        except (OSError, ValueError, TypeError):
+            return True
+
+    def _save_demo_edition_state(self, enabled):
+        """Persist the user's demo choice without touching either database."""
+        os.makedirs(APP_SUPPORT_DIR, exist_ok=True)
+        temp_path = f"{DEMO_EDITION_STATE}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as handle:
+            json.dump({"demo_active": bool(enabled)}, handle)
+        os.replace(temp_path, DEMO_EDITION_STATE)
+
+    def _is_restricted_demo(self):
+        return self._demo_only and self._is_demo
 
     def _ensure_demo_data(self):
         """Populate the isolated demo database when it is empty."""
@@ -314,22 +337,30 @@ class Api:
     def toggle_demo_mode(self, enabled):
         """Toggle demo mode (uses a separate prepopulated database)."""
         enabled = bool(enabled)
-        if self._demo_only and not enabled:
-            return {
-                "success": False,
-                "demo_active": True,
-                "error": "This distribution is locked to demo mode.",
-            }
         self._is_demo = enabled
+        if not enabled:
+            load_active_profile()
         set_demo_mode(enabled)
+        init_database()
         if enabled:
             try:
                 self._ensure_demo_data()
             except Exception as e:
                 app_logger.log_exception("toggle_demo_mode > generate_demo_data", e)
                 return {"success": False, "demo_active": True, "error": str(e)}
+        if self._demo_only:
+            try:
+                self._save_demo_edition_state(enabled)
+            except OSError as e:
+                app_logger.log_exception("toggle_demo_mode > save edition state", e)
+                return {"success": False, "demo_active": enabled, "error": str(e)}
         app_logger.info("Demo mode set to: %s", enabled)
-        return {"success": True, "demo_active": enabled}
+        return {
+            "success": True,
+            "demo_active": enabled,
+            "demo_only": self._demo_only and enabled,
+            "demo_edition": self._demo_only,
+        }
 
     def reset_demo_data(self):
         """
@@ -368,7 +399,8 @@ class Api:
         """Return immutable distribution capabilities for the frontend."""
         return {
             "name": APP_NAME,
-            "demo_only": self._demo_only,
+            "demo_only": self._is_restricted_demo(),
+            "demo_edition": self._demo_only,
             "demo_active": self._is_demo,
         }
 
@@ -2066,7 +2098,7 @@ class Api:
 
     def restore_backup(self, backup_name):
         """Restore the active profile database from a named local backup."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"success": False, "error": "Backup restore is disabled in Demo Edition."}
         try:
             result = restore_local_backup(backup_name)
@@ -2169,7 +2201,8 @@ class Api:
         return {
             "version": "1.1.0",
             "name": APP_NAME,
-            "demo_only": self._demo_only,
+            "demo_only": self._is_restricted_demo(),
+            "demo_edition": self._demo_only,
             "data_dir": APP_SUPPORT_DIR,
             "db_path": get_db_path(),
             "media_dir": MEDIA_DIR,
@@ -2182,7 +2215,7 @@ class Api:
 
     def get_profiles(self):
         """Get all profiles with sizes."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return []
         try:
             profiles = db_get_profiles()
@@ -2212,7 +2245,7 @@ class Api:
 
     def get_active_profile_info(self):
         """Get the currently active profile."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"id": "demo", "name": "Demo Edition", "is_active": True}
         try:
             return db_get_active_profile()
@@ -2222,7 +2255,7 @@ class Api:
 
     def create_new_profile(self, name, description="", color="#007AFF"):
         """Create a new profile."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             if not name or not name.strip():
@@ -2236,7 +2269,7 @@ class Api:
 
     def switch_active_profile(self, profile_id):
         """Switch to a different profile. Re-initializes the database connection."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             result = db_switch_profile(profile_id)
@@ -2251,7 +2284,7 @@ class Api:
 
     def rename_existing_profile(self, profile_id, new_name, new_description=None, new_color=None):
         """Rename a profile."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             result = db_rename_profile(profile_id, new_name, new_description, new_color)
@@ -2264,7 +2297,7 @@ class Api:
 
     def delete_existing_profile(self, profile_id):
         """Delete a profile (cannot delete 'default')."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             result = db_delete_profile(profile_id)
@@ -2279,7 +2312,7 @@ class Api:
 
     def reset_current_profile(self):
         """Wipe ALL data in the current profile. Settings stay. Backup is forced first."""
-        if self._demo_only:
+        if self._is_restricted_demo():
             return {"success": False, "error": "Use Regenerate Demo Data in Demo Edition."}
         try:
             try:

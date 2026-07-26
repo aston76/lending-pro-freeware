@@ -386,7 +386,7 @@ const HelpPage = {
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Demo Mode</h5>
-                        <p>Activates a separate database with fictitious data to test the application. Disable it to return to your real data. <strong>Your real data is never affected.</strong></p>
+                        <p>Uses a separate database with fictitious data. In the shared Demo Edition, click <strong>Use my own data</strong> beside the DEMO DATA label to open a new empty database. The choice is remembered and demo data stays separate.</p>
                     </div>
                 </div>
             `

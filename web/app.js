@@ -183,6 +183,7 @@ const App = {
     calcLastResult: false,
     appName: 'PH-Lending Pro',
     isDemoOnly: false,
+    isDemoEdition: false,
 
     // ─── Initialize ──────────────────────────────────────────
     async init() {
@@ -202,6 +203,7 @@ const App = {
         const appMode = await pywebview.api.get_app_mode();
         this.appName = appMode.name || this.appName;
         this.isDemoOnly = Boolean(appMode.demo_only);
+        this.isDemoEdition = Boolean(appMode.demo_edition);
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
@@ -275,10 +277,14 @@ const App = {
             if (!badge && titleEl) {
                 badge = document.createElement('span');
                 badge.id = 'demo-badge';
-                badge.className = 'ml-2 px-2 py-0.5 text-[10px] font-bold tracking-wider rounded-full animate-pulse';
-                badge.style.cssText = 'background: rgba(255,149,0,0.15); color: #FF9500; border: 1px solid rgba(255,149,0,0.3);';
-                badge.textContent = this.isDemoOnly ? 'DEMO EDITION' : 'DEMO';
+                badge.className = 'ml-2 inline-flex items-center gap-2 px-2 py-1 text-[10px] font-bold rounded-md';
+                badge.style.cssText = 'background: rgba(255,149,0,0.12); color: #FF9500; border: 1px solid rgba(255,149,0,0.3);';
                 titleEl.after(badge);
+            }
+            if (badge) {
+                badge.innerHTML = this.isDemoOnly
+                    ? `DEMO DATA <button type="button" onclick="SettingsPage.leaveDemo()" class="px-2 py-1 rounded bg-orange-500 text-white hover:bg-orange-600">Use my own data</button>`
+                    : 'DEMO';
             }
         } else if (badge) {
             badge.remove();
