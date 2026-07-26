@@ -12,7 +12,7 @@ All operational data is stored locally on the user's computer. The repository an
 - Collection calendar and overdue alerts
 - PDF, Excel, backup, and restore tools
 - Optional temporary demo mode with fictitious records
-- Light and dark themes
+- Light theme by default, with an optional dark theme
 - Clean shutdown with automatic local backup
 - 22 selectable currencies for international use
 - Worldwide address search and international phone numbers
@@ -20,11 +20,19 @@ All operational data is stored locally on the user's computer. The repository an
 
 ## Screenshots
 
-![Empty dashboard](docs/screenshots/dashboard-empty.png)
+Click any screenshot to open it at full resolution. The complete gallery is available in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
-![Dashboard with fictitious demo data](docs/screenshots/dashboard-demo.png)
+### Empty dashboard
 
-![Donation dialog](docs/screenshots/donation-dialog.png)
+[![Empty dashboard in light mode](docs/screenshots/dashboard-empty.png)](docs/screenshots/dashboard-empty.png)
+
+### Dashboard with fictitious demo data
+
+[![Demo dashboard in light mode](docs/screenshots/dashboard-demo.png)](docs/screenshots/dashboard-demo.png)
+
+### Donation reminder
+
+[![Donation reminder in light mode](docs/screenshots/donation-dialog.png)](docs/screenshots/donation-dialog.png)
 
 ## Install on macOS
 

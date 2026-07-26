@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.2 - 2026-07-26
+
+- Made the light interface the default for new installations.
+- Preserved dark mode as an explicit user preference.
+- Rebuilt all public screenshots in light mode with isolated fictitious data.
+- Added a dedicated Markdown screenshot gallery with full-resolution links.
+
 ## 1.3.1 - 2026-07-26
 
 - Changed the donation reminder to appear at most once every 7 days.
