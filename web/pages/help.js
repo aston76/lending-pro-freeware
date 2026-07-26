@@ -386,7 +386,7 @@ const HelpPage = {
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Demo Mode</h5>
-                        <p>Uses a separate database with fictitious data. In the shared Demo Edition, click <strong>Use my own data</strong> beside the DEMO DATA label to open a new empty database. The choice is remembered and demo data stays separate.</p>
+                        <p>The application opens on an empty personal database. Use <strong>Tester la démo</strong> in the top-right toolbar to temporarily load fictitious data. Leaving the demo returns to the personal database, and restarting the application always starts outside demo mode.</p>
                     </div>
                 </div>
             `
@@ -471,7 +471,7 @@ const HelpPage = {
 
     render() {
         const content = document.getElementById('page-content');
-        const dataFolder = App.isDemoOnly ? 'PH-Lending Demo' : 'PH-Lending';
+        const dataFolder = App.isDemoEdition ? 'PH-Lending Demo' : 'PH-Lending';
         const sections = this.sections.map(section => ({
             ...section,
             content: section.content.replaceAll(

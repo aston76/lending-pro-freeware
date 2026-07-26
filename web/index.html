@@ -139,6 +139,15 @@
                     <span id="autosave-text">Saving…</span>
                 </div>
 
+                <!-- Demo is opt-in and kept away from the page title. -->
+                <button id="demo-mode-btn" onclick="App.requestDemoMode()"
+                    class="hidden btn btn-sm items-center gap-1.5 justify-center"
+                    style="background:rgba(255,149,0,0.12); color:#B86700; border:1px solid rgba(255,149,0,0.28);"
+                    title="Tester le mode démo">
+                    <i id="demo-mode-icon" data-lucide="flask-conical" class="w-3.5 h-3.5"></i>
+                    <span id="demo-mode-label">Tester la démo</span>
+                </button>
+
                 <!-- Online status -->
                 <div id="online-status" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
                     style="background: rgba(52,199,89,0.12); color: #1A8F3A;">

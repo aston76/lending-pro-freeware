@@ -585,7 +585,7 @@ const SettingsPage = {
                             </button>
                             ${restrictedDemo ? `<button onclick="SettingsPage.leaveDemo()"
                                 class="btn btn-sm btn-primary">
-                                Use my own data
+                                Quitter la démo
                             </button>` : `<button onclick="SettingsPage.toggleDemo(false)"
                                 class="btn btn-sm btn-ghost">
                                 Disable Demo
@@ -645,34 +645,11 @@ const SettingsPage = {
     },
 
     leaveDemo() {
-        UI.confirm(
-            'Use your own data? The app will switch to a new empty database. Demo data stays separate and no personal data is copied.',
-            () => this.toggleDemo(false)
-        );
+        return App.setDemoMode(false);
     },
 
     async toggleDemo(enabled) {
-        if (enabled) {
-            UI.toast('Activating Demo Mode, generating data...', 'info');
-        }
-        const result = await App.api('toggle_demo_mode', enabled);
-        if (!result.success) {
-            UI.toast(result.error || 'Unable to change demo mode.', 'error');
-            return;
-        }
-        App.isDemoMode = Boolean(result.demo_active);
-        App.isDemoOnly = Boolean(result.demo_only);
-        App.isDemoEdition = Boolean(result.demo_edition);
-        App.updateDemoBadge();
-        const settings = await App.api('get_settings');
-        const nameEl = document.getElementById('sidebar-company-name');
-        if (nameEl) nameEl.textContent = settings.company_name || App.appName;
-        await App.refreshAlertsBadge();
-        App.navigate('dashboard');
-        UI.toast(
-            enabled ? 'Demo mode activated.' : 'Ready. The app now uses a new empty database.',
-            'success'
-        );
+        return App.setDemoMode(enabled);
     },
 
     async resetDemoData() {

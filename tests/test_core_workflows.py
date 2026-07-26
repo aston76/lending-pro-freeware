@@ -458,34 +458,33 @@ def test_financial_pdfs_render_with_explicit_rate_semantics(tmp_path, monkeypatc
         assert base64.b64decode(pdf_data).startswith(b"%PDF")
 
 
-def test_demo_distribution_exits_to_persisted_empty_database(tmp_path, monkeypatch):
+def test_demo_distribution_starts_empty_and_demo_is_temporary(tmp_path, monkeypatch):
     monkeypatch.setenv("PH_LENDING_DEMO_ONLY", "1")
     api_obj, _, database, _ = fresh_api(tmp_path, monkeypatch)
 
     mode = api_obj.get_app_mode()
     assert mode == {
         "name": "PH-Lending Pro Demo",
+        "demo_only": False,
+        "demo_edition": True,
+        "demo_active": False,
+    }
+    assert api_obj.get_demo_status() is False
+    assert database.get_db_path().endswith("PH-Lending Demo/phlending.db")
+    assert api_obj.get_all_clients_simple() == []
+
+    switched = api_obj.toggle_demo_mode(True)
+    assert switched == {
+        "success": True,
+        "demo_active": True,
         "demo_only": True,
         "demo_edition": True,
-        "demo_active": True,
     }
-    assert api_obj.get_demo_status() is True
+    assert database.get_db_path().endswith("PH-Lending Demo/phlending_demo.db")
+    assert len(api_obj.get_all_clients_simple()) > 0
     assert api_obj.get_profiles() == []
     assert api_obj.restore_backup("anything")["success"] is False
     assert api_obj.create_new_profile("Private")["success"] is False
-    assert database.get_db_path().endswith("PH-Lending Demo/phlending_demo.db")
-    assert not os.path.exists(os.path.join(database.APP_SUPPORT_DIR, "phlending.db"))
-    assert len(api_obj.get_all_clients_simple()) > 0
-
-    switched = api_obj.toggle_demo_mode(False)
-    assert switched == {
-        "success": True,
-        "demo_active": False,
-        "demo_only": False,
-        "demo_edition": True,
-    }
-    assert database.get_db_path().endswith("PH-Lending Demo/phlending.db")
-    assert api_obj.get_all_clients_simple() == []
 
     restarted, _, restarted_database, _ = fresh_api(tmp_path, monkeypatch)
     assert restarted.get_demo_status() is False

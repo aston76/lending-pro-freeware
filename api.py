@@ -43,7 +43,6 @@ from backup import (
 )
 
 PDF_DIR = os.path.join(APP_SUPPORT_DIR, "pdfs")
-DEMO_EDITION_STATE = os.path.join(APP_SUPPORT_DIR, "demo_edition_state.json")
 os.makedirs(PDF_DIR, exist_ok=True)
 
 VALID_PAYMENT_METHODS = {"cash", "gcash", "bank_transfer", "check"}
@@ -192,37 +191,14 @@ class Api:
 
     def __init__(self):
         self._demo_only = DEMO_ONLY
-        self._is_demo = DEMO_ONLY and self._load_demo_edition_state()
+        self._is_demo = False
         self._window = None
         self._server = None
         self._shutdown_started = False
         self._shutdown_lock = threading.Lock()
-        if self._is_demo:
-            set_demo_mode(True)
-        else:
-            load_active_profile()
-            set_demo_mode(False)
+        load_active_profile()
+        set_demo_mode(False)
         init_database()
-        if self._is_demo:
-            self._ensure_demo_data()
-
-    def _load_demo_edition_state(self):
-        """Return whether this distribution should start with demo data."""
-        if not os.path.exists(DEMO_EDITION_STATE):
-            return True
-        try:
-            with open(DEMO_EDITION_STATE, "r", encoding="utf-8") as handle:
-                return bool(json.load(handle).get("demo_active", True))
-        except (OSError, ValueError, TypeError):
-            return True
-
-    def _save_demo_edition_state(self, enabled):
-        """Persist the user's demo choice without touching either database."""
-        os.makedirs(APP_SUPPORT_DIR, exist_ok=True)
-        temp_path = f"{DEMO_EDITION_STATE}.tmp"
-        with open(temp_path, "w", encoding="utf-8") as handle:
-            json.dump({"demo_active": bool(enabled)}, handle)
-        os.replace(temp_path, DEMO_EDITION_STATE)
 
     def _is_restricted_demo(self):
         return self._demo_only and self._is_demo
@@ -348,12 +324,6 @@ class Api:
             except Exception as e:
                 app_logger.log_exception("toggle_demo_mode > generate_demo_data", e)
                 return {"success": False, "demo_active": True, "error": str(e)}
-        if self._demo_only:
-            try:
-                self._save_demo_edition_state(enabled)
-            except OSError as e:
-                app_logger.log_exception("toggle_demo_mode > save edition state", e)
-                return {"success": False, "demo_active": enabled, "error": str(e)}
         app_logger.info("Demo mode set to: %s", enabled)
         return {
             "success": True,

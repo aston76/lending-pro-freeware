@@ -208,7 +208,7 @@ const App = {
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
         if (versionLabel) versionLabel.textContent = `v1.1.0 - ${this.appName}`;
-        this.updateDemoBadge();
+        this.updateDemoControl();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();
         SoundEngine.init();
@@ -269,25 +269,65 @@ const App = {
         } catch (e) { }
     },
 
-    // ─── Demo Badge ──────────────────────────────────────────
-    updateDemoBadge() {
-        const titleEl = document.getElementById('page-title');
-        let badge = document.getElementById('demo-badge');
-        if (this.isDemoMode) {
-            if (!badge && titleEl) {
-                badge = document.createElement('span');
-                badge.id = 'demo-badge';
-                badge.className = 'ml-2 inline-flex items-center gap-2 px-2 py-1 text-[10px] font-bold rounded-md';
-                badge.style.cssText = 'background: rgba(255,149,0,0.12); color: #FF9500; border: 1px solid rgba(255,149,0,0.3);';
-                titleEl.after(badge);
+    // ─── Demo Control ────────────────────────────────────────
+    updateDemoControl() {
+        const button = document.getElementById('demo-mode-btn');
+        const label = document.getElementById('demo-mode-label');
+        const icon = document.getElementById('demo-mode-icon');
+        if (!button) return;
+
+        if (!this.isDemoEdition) {
+            button.classList.add('hidden');
+            button.classList.remove('flex');
+            return;
+        }
+
+        button.classList.remove('hidden');
+        button.classList.add('flex');
+        button.title = this.isDemoMode ? 'Quitter le mode démo' : 'Tester le mode démo';
+        button.style.cssText = this.isDemoMode
+            ? 'background:#B86700; color:white; border:1px solid #B86700;'
+            : 'background:rgba(255,149,0,0.12); color:#B86700; border:1px solid rgba(255,149,0,0.28);';
+        if (label) label.textContent = this.isDemoMode ? 'Quitter la démo' : 'Tester la démo';
+        if (icon) {
+            icon.setAttribute('data-lucide', this.isDemoMode ? 'log-out' : 'flask-conical');
+            lucide.createIcons({ nodes: [icon] });
+        }
+    },
+
+    requestDemoMode() {
+        this.setDemoMode(!this.isDemoMode);
+    },
+
+    async setDemoMode(enabled) {
+        const button = document.getElementById('demo-mode-btn');
+        if (button?.disabled) return;
+        if (button) button.disabled = true;
+
+        try {
+            if (enabled) UI.toast('Préparation des données de démonstration…', 'info');
+            const result = await this.api('toggle_demo_mode', enabled);
+            if (!result?.success) {
+                UI.toast(result?.error || 'Impossible de changer le mode démo.', 'error');
+                return;
             }
-            if (badge) {
-                badge.innerHTML = this.isDemoOnly
-                    ? `DEMO DATA <button type="button" onclick="SettingsPage.leaveDemo()" class="px-2 py-1 rounded bg-orange-500 text-white hover:bg-orange-600">Use my own data</button>`
-                    : 'DEMO';
-            }
-        } else if (badge) {
-            badge.remove();
+
+            this.isDemoMode = Boolean(result.demo_active);
+            this.isDemoOnly = Boolean(result.demo_only);
+            this.isDemoEdition = Boolean(result.demo_edition);
+            this.updateDemoControl();
+
+            const settings = await this.api('get_settings');
+            const nameEl = document.getElementById('sidebar-company-name');
+            if (nameEl) nameEl.textContent = settings.company_name || this.appName;
+            await this.refreshAlertsBadge();
+            await this.navigate('dashboard');
+            UI.toast(
+                enabled ? 'Mode démo activé : données fictives uniquement.' : 'Mode démo quitté : base personnelle active.',
+                'success'
+            );
+        } finally {
+            if (button) button.disabled = false;
         }
     },
 

@@ -407,6 +407,17 @@ body {
 }
 
 /* ── Status Badges ────────────────────────────────────────────── */
+#demo-mode-label {
+    display: inline;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    #demo-mode-label {
+        display: none;
+    }
+}
+
 .badge {
     display: inline-flex;
     align-items: center;
