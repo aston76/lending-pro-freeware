@@ -208,7 +208,7 @@ const SettingsPage = {
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Default Monthly Interest Rate (%)</label>
-                                <input name="default_interest_rate" type="number" class="input" step="0.1" min="0" 
+                                <input name="default_interest_rate" type="number" class="input" step="0.01" min="0" inputmode="decimal"
                                        value="${settings.default_interest_rate || '5.0'}">
                             </div>
                             <div>
@@ -229,12 +229,12 @@ const SettingsPage = {
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div id="commission-rate-field" class="${settings.commission_type === 'fixed_amount' ? 'hidden' : ''}">
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Commission Rate (%)</label>
-                                <input name="commission_rate" type="number" class="input" step="0.1" min="0" 
+                                <input name="commission_rate" type="number" class="input" step="0.01" min="0" inputmode="decimal"
                                        value="${settings.commission_rate || '2.0'}">
                             </div>
                             <div id="commission-amount-field" class="${settings.commission_type !== 'fixed_amount' ? 'hidden' : ''}">
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Commission Amount (₱)</label>
-                                <input name="commission_amount" type="number" class="input" step="100" min="0" 
+                                <input name="commission_amount" type="number" class="input" step="0.01" min="0" inputmode="decimal"
                                        value="${settings.commission_amount || '500'}">
                             </div>
                         </div>
@@ -267,7 +267,7 @@ const SettingsPage = {
                                                 ₱
                                             </span>
                                             <input name="referral_bonus_amount" type="number" class="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white text-sm outline-none" 
-                                                   step="50" min="0" placeholder="500"
+                                                   step="0.01" min="0" inputmode="decimal" placeholder="500"
                                                    value="${settings.referral_bonus_amount || '500'}">
                                         </div>
                                     </div>

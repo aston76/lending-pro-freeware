@@ -225,12 +225,12 @@ const LoansPage = {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Principal (₱) *</label>
-                        <input name="principal" type="number" class="input" required min="100" step="100" placeholder="10000"
+                        <input name="principal" type="number" class="input" required min="0.01" step="0.01" inputmode="decimal" placeholder="10000"
                                oninput="LoansPage.previewLoan()">
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Interest Rate (%) *</label>
-                        <input name="rate" type="number" class="input" required min="0.1" max="100" step="0.1" value="${defaultRate}"
+                        <input name="rate" type="number" class="input" required min="0" max="100" step="0.01" inputmode="decimal" value="${defaultRate}"
                                oninput="LoansPage.previewLoan()">
                     </div>
                 </div>

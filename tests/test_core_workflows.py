@@ -2,8 +2,10 @@ import base64
 import hashlib
 import importlib
 import os
+import re
 import sqlite3
 import sys
+from pathlib import Path
 
 
 PROJECT_MODULES = [
@@ -505,6 +507,33 @@ def test_penalty_accepts_regular_currency_amount(tmp_path, monkeypatch):
     penalties = api_obj.get_penalties(client_id=client_id)
     assert penalties[0]["id"] == penalty_id
     assert penalties[0]["amount"] == 2500
+
+
+def test_money_and_rate_inputs_accept_cent_precision():
+    """Prevent browser step validation from rejecting legitimate amounts."""
+    pages_dir = Path(__file__).resolve().parents[1] / "web" / "pages"
+    decimal_fields = {
+        "amount",
+        "commission_amount",
+        "commission_rate",
+        "default_interest_rate",
+        "monthly_income",
+        "principal",
+        "rate",
+        "referral_bonus_amount",
+    }
+
+    checked = []
+    for path in pages_dir.glob("*.js"):
+        source = path.read_text(encoding="utf-8")
+        for tag in re.findall(r'<input\b[^>]*type="number"[^>]*>', source, re.DOTALL):
+            name_match = re.search(r'name="([^"]+)"', tag)
+            if not name_match or name_match.group(1) not in decimal_fields:
+                continue
+            checked.append((path.name, name_match.group(1)))
+            assert 'step="0.01"' in tag, f"Cent precision missing in {path.name}: {tag}"
+
+    assert checked
 
 
 def test_shutdown_stops_local_server_once(tmp_path, monkeypatch):

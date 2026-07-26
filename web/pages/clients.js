@@ -170,7 +170,7 @@ const ClientsPage = {
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
-                        <input name="monthly_income" type="number" class="input" min="0" step="100" placeholder="0">
+                        <input name="monthly_income" type="number" class="input" min="0" step="0.01" inputmode="decimal" placeholder="0">
                     </div>
                 </div>
                 <div>
@@ -286,7 +286,7 @@ const ClientsPage = {
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
-                        <input name="monthly_income" type="number" class="input" min="0" step="100" value="${client.monthly_income || ''}" placeholder="0">
+                        <input name="monthly_income" type="number" class="input" min="0" step="0.01" inputmode="decimal" value="${client.monthly_income || ''}" placeholder="0">
                     </div>
                 </div>
                 <div>

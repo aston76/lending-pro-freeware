@@ -493,7 +493,7 @@ const ClientDetailPage = {
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
-                        <input name="monthly_income" type="number" step="100" min="0" class="input" placeholder="0" id="edit-income">
+                        <input name="monthly_income" type="number" step="0.01" min="0" inputmode="decimal" class="input" placeholder="0" id="edit-income">
                     </div>
                 </div>
                 <div>
@@ -908,7 +908,7 @@ const ClientDetailPage = {
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Interest Rate (%) *</label>
-                            <input name="rate" type="number" class="input" required min="0" step="0.5" value="${defaultRate}" ${!canRenew ? 'disabled' : ''}>
+                            <input name="rate" type="number" class="input" required min="0" step="0.01" inputmode="decimal" value="${defaultRate}" ${!canRenew ? 'disabled' : ''}>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Interest Type *</label>
