@@ -1,14 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
-title PH-Lending Pro — Installation
+title Lending Pro Freeware — Installation
 color 0A
 
 echo.
 echo  ==========================================================
-echo    PH-Lending Pro  ^|  Installation automatique Windows
+echo    Lending Pro Freeware  ^|  Installation automatique Windows
 echo  ==========================================================
 echo.
-echo  Ce programme va installer PH-Lending Pro sur votre ordinateur.
+echo  Ce programme va installer Lending Pro Freeware sur votre ordinateur.
 echo  L'operation peut prendre entre 5 et 10 minutes.
 echo  Merci de ne PAS fermer cette fenetre.
 echo.
@@ -127,15 +127,15 @@ if exist "icon.icns" (
 
 :: Nettoyage des anciens builds
 if exist "build" rmdir /s /q "build"
-if exist "dist\PH-Lending Pro" rmdir /s /q "dist\PH-Lending Pro"
-if exist "PH-Lending Pro.spec" del /q "PH-Lending Pro.spec"
+if exist "dist\Lending Pro Freeware" rmdir /s /q "dist\Lending Pro Freeware"
+if exist "Lending Pro Freeware.spec" del /q "Lending Pro Freeware.spec"
 
 :: Commande PyInstaller (avec ou sans icone)
 set "ICON_PARAM="
 if exist "icon.ico" set "ICON_PARAM=--icon icon.ico"
 
 pyinstaller ^
-    --name "PH-Lending Pro" ^
+    --name "Lending Pro Freeware" ^
     --windowed ^
     --onedir ^
     --noconfirm ^
@@ -184,7 +184,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "dist\PH-Lending Pro\PH-Lending Pro.exe" (
+if not exist "dist\Lending Pro Freeware\Lending Pro Freeware.exe" (
     echo.
     echo  [ERREUR] Le fichier .exe est introuvable apres compilation.
     pause
@@ -200,9 +200,9 @@ echo.
 echo  [5/5] Creation du raccourci sur le Bureau...
 echo  ──────────────────────────────────────────────────────
 
-set "EXE_PATH=%~dp0dist\PH-Lending Pro\PH-Lending Pro.exe"
-set "WORK_DIR=%~dp0dist\PH-Lending Pro"
-set "SHORTCUT=%USERPROFILE%\Desktop\PH-Lending Pro.lnk"
+set "EXE_PATH=%~dp0dist\Lending Pro Freeware\Lending Pro Freeware.exe"
+set "WORK_DIR=%~dp0dist\Lending Pro Freeware"
+set "SHORTCUT=%USERPROFILE%\Desktop\Lending Pro Freeware.lnk"
 set "ICO=%~dp0icon.ico"
 
 powershell -NoProfile -Command ^
@@ -211,7 +211,7 @@ powershell -NoProfile -Command ^
 if exist "%SHORTCUT%" (
     echo        Raccourci cree sur le Bureau.
 ) else (
-    echo        ^(Raccourci non cree — lancez l'app depuis dist\PH-Lending Pro\^)
+    echo        ^(Raccourci non cree — lancez l'app depuis dist\Lending Pro Freeware\^)
 )
 
 :: ──────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ echo.
 echo  Nettoyage des fichiers temporaires...
 if exist "venv_win" rmdir /s /q "venv_win"
 if exist "build" rmdir /s /q "build"
-if exist "PH-Lending Pro.spec" del /q "PH-Lending Pro.spec"
+if exist "Lending Pro Freeware.spec" del /q "Lending Pro Freeware.spec"
 
 :: ──────────────────────────────────────────────────────
 :: SUCCES
@@ -231,7 +231,7 @@ echo  ==========================================================
 echo    Installation terminee avec succes !
 echo  ==========================================================
 echo.
-echo    Un raccourci "PH-Lending Pro" a ete cree sur
+echo    Un raccourci "Lending Pro Freeware" a ete cree sur
 echo    votre Bureau. Double-cliquez dessus pour lancer
 echo    l'application.
 echo.

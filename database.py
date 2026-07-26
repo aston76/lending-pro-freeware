@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Database Module
+Lending Pro Freeware — Database Module
 SQLite3 schema initialization, connection management, migrations, and profile management.
 """
 

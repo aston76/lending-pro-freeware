@@ -1,8 +1,8 @@
-PH-Lending Pro Demo - macOS Apple Silicon
+Lending Pro Freeware - macOS Apple Silicon
 
 Installation
 1. Open the DMG.
-2. Drag PH-Lending Pro Demo into Applications.
+2. Drag Lending Pro Freeware into Applications.
 3. Open the app from Applications.
 
 The app starts with a new empty personal database. Click "Tester la demo" in

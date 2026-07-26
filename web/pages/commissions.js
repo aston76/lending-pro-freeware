@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Referral Commissions Page
+ * Lending Pro Freeware — Referral Commissions Page
  */
 const CommissionsPage = {
     async render() {

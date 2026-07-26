@@ -1,9 +1,9 @@
 @echo off
-title Compilation Windows - PH-Lending Pro
+title Compilation Windows - Lending Pro Freeware
 color 0B
 echo.
 echo  ==========================================
-echo    Compilation .exe — PH-Lending Pro
+echo    Compilation .exe — Lending Pro Freeware
 echo    (Usage developpeur)
 echo  ==========================================
 echo.
@@ -37,8 +37,8 @@ if exist "icon.icns" (
 :: Nettoyage
 echo [3/4] Nettoyage des anciens builds...
 if exist "build" rmdir /s /q "build"
-if exist "dist\PH-Lending Pro" rmdir /s /q "dist\PH-Lending Pro"
-if exist "PH-Lending Pro.spec" del /q "PH-Lending Pro.spec"
+if exist "dist\Lending Pro Freeware" rmdir /s /q "dist\Lending Pro Freeware"
+if exist "Lending Pro Freeware.spec" del /q "Lending Pro Freeware.spec"
 
 :: Compiler
 echo [4/4] Compilation PyInstaller (1-2 minutes)...
@@ -47,7 +47,7 @@ set "ICON_PARAM="
 if exist "icon.ico" set "ICON_PARAM=--icon icon.ico"
 
 pyinstaller ^
-    --name "PH-Lending Pro" ^
+    --name "Lending Pro Freeware" ^
     --windowed ^
     --onedir ^
     --noconfirm ^
@@ -88,9 +88,9 @@ pyinstaller ^
 
 echo.
 echo  ==========================================
-if exist "dist\PH-Lending Pro\PH-Lending Pro.exe" (
+if exist "dist\Lending Pro Freeware\Lending Pro Freeware.exe" (
     echo    Compilation reussie !
-    echo    EXE : dist\PH-Lending Pro\PH-Lending Pro.exe
+    echo    EXE : dist\Lending Pro Freeware\Lending Pro Freeware.exe
 ) else (
     echo    [ERREUR] Compilation echouee.
 )

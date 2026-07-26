@@ -24,6 +24,9 @@ node_modules/
 *.db
 *.sqlite
 *.sqlite3
+*.db-*
+*.sqlite-*
+*.sqlite3-*
 *.log
 .env
 .env.*
@@ -31,6 +34,14 @@ google_credentials.json
 google_token.json
 credentials.json
 token.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.credentials.json
 
 # Build / packaging outputs
 build/

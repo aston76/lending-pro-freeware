@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a self-contained macOS launcher for PH-Lending Pro."""
+"""Build a self-contained macOS launcher for Lending Pro Freeware."""
 
 import os
 import shutil
@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 
-APP_NAME = "PH-Lending Pro"
+APP_NAME = "Lending Pro Freeware"
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 APP_DEST = os.path.expanduser(f"~/Applications/{APP_NAME}.app")
 RUNTIME_DIR = os.path.expanduser("~/Library/Application Support/PH-Lending/runtime")
@@ -135,9 +135,9 @@ exec "$PYTHON" "$APP_CODE/main.py" >> "$LOG_DIR/PH-Lending.log" 2>&1
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSCameraUsageDescription</key>
-    <string>PH-Lending Pro uses the camera to capture client photos.</string>
+    <string>Lending Pro Freeware uses the camera to capture client photos.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>PH-Lending Pro imports client documents selected by the user.</string>
+    <string>Lending Pro Freeware imports client documents selected by the user.</string>
 </dict>
 </plist>
 """

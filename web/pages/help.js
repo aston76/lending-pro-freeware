@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Help & User Guide Page
+ * Lending Pro Freeware — Help & User Guide Page
  * Interactive accordion FAQ / user manual
  */
 const HelpPage = {

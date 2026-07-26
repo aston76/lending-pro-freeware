@@ -464,7 +464,7 @@ def test_demo_distribution_starts_empty_and_demo_is_temporary(tmp_path, monkeypa
 
     mode = api_obj.get_app_mode()
     assert mode == {
-        "name": "PH-Lending Pro Demo",
+        "name": "Lending Pro Freeware",
         "demo_only": False,
         "demo_edition": True,
         "demo_active": False,

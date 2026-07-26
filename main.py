@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Application Entry Point
+Lending Pro Freeware — Application Entry Point
 Launches the pywebview desktop window with the API backend.
 On close: auto-backup then clean shutdown.
 """

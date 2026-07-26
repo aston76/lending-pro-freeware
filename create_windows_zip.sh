@@ -1,19 +1,19 @@
 #!/bin/bash
 # ============================================================
 #  create_windows_zip.sh
-#  Lance depuis le Mac — crée le ZIP Windows de PH-Lending Pro
+#  Lance depuis le Mac — crée le ZIP Windows de Lending Pro Freeware
 #  Usage : bash create_windows_zip.sh
 # ============================================================
 
 set -e
 cd "$(dirname "$0")"
 
-APP_NAME="PH-Lending-Pro-Windows"
+APP_NAME="Lending-Pro-Freeware-Windows"
 ZIP_FILE="${APP_NAME}.zip"
 
 echo ""
 echo "  ======================================================"
-echo "   PH-Lending Pro — Création du paquet Windows"
+echo "   Lending Pro Freeware — Création du paquet Windows"
 echo "  ======================================================"
 echo ""
 
@@ -29,6 +29,7 @@ echo ""
 # Créer le ZIP avec uniquement les fichiers nécessaires
 zip -r "$ZIP_FILE" \
     "main.py" \
+    "app_config.py" \
     "api.py" \
     "database.py" \
     "loan_engine.py" \
@@ -41,7 +42,7 @@ zip -r "$ZIP_FILE" \
     "requirements.txt" \
     "INSTALL.bat" \
     "README_WINDOWS.txt" \
-    "SUIVI.md" \
+    "LICENSE" \
     "web/" \
     -x "web/.DS_Store" \
     -x "**/.DS_Store" \

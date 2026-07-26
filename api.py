@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Main API
+Lending Pro Freeware — Main API
 Exposed to the frontend via pywebview's js_api bridge.
 All methods are callable from JavaScript as pywebview.api.<method_name>()
 """

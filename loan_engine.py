@@ -1,5 +1,5 @@
 """
-PH-Lending Pro loan calculation engine.
+Lending Pro Freeware loan calculation engine.
 
 The stored interest rate is the total rate for the full loan term. The UI may
 accept a monthly rate, but converts it to a term rate before calling this module.

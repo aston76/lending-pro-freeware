@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fast project sanity checks for PH-Lending Pro."""
+"""Fast project sanity checks for Lending Pro Freeware."""
 
 from __future__ import annotations
 

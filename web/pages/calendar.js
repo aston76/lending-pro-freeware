@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Collection Calendar Page
+ * Lending Pro Freeware — Collection Calendar Page
  * Enhanced: Day-of-month filter, payment validation, monthly earnings.
  */
 const CalendarPage = {

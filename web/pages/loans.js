@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Loans Page
+ * Lending Pro Freeware — Loans Page
  * List all loans with status filter and create new loans.
  */
 const LoansPage = {

@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Demo Data Generator (v2)
+Lending Pro Freeware — Demo Data Generator (v2)
 Generates realistic Filipino lending scenarios including:
   - Normal active clients (paying on time)
   - Overdue clients in 4 severity levels (Low / Medium / High / Critical)
