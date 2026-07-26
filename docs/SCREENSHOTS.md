@@ -1,23 +1,35 @@
-# Lending Pro Freeware Screenshots
+# Lending Pro Freeware — Screenshots
 
-These screenshots were created from an isolated application profile. The demo view contains only fictitious records and no personal information.
+All screenshots were captured from an isolated application profile. The demo data is entirely fictitious and contains no personal information.
 
-Click an image to open its original full-resolution version.
+## Animated tour
 
-## Empty Dashboard
+![Lending Pro Freeware animated tour](screenshots/demo.gif)
 
-[![Empty dashboard in light mode](screenshots/dashboard-empty.png)](screenshots/dashboard-empty.png)
+## Dashboard
 
-The personal workspace starts empty and ready for a new client or loan.
+[![Dashboard with fictitious demo data](screenshots/dashboard-demo.png)](screenshots/dashboard-demo.png)
 
-## Demo Dashboard
+[![Empty personal dashboard](screenshots/dashboard-empty.png)](screenshots/dashboard-empty.png)
 
-[![Dashboard with fictitious demo data in light mode](screenshots/dashboard-demo.png)](screenshots/dashboard-demo.png)
+## Loans & Payments
 
-Temporary demo mode provides fictitious examples without changing the personal database.
+[![Loan agreements](screenshots/loans.png)](screenshots/loans.png)
 
-## Donation Reminder
+[![Payment history](screenshots/payments.png)](screenshots/payments.png)
 
-[![Donation reminder in light mode](screenshots/donation-dialog.png)](screenshots/donation-dialog.png)
+## Collections
 
-The support reminder appears at most weekly, or every 90 days after local donation confirmation.
+[![Collection calendar and monthly earnings](screenshots/collections.png)](screenshots/collections.png)
+
+## Client profile — camera, documents & signature
+
+[![Client profile with photo, DTI and documents](screenshots/client-detail.png)](screenshots/client-detail.png)
+
+## Settings — currencies & languages
+
+[![Settings showing currency and language selectors](screenshots/settings.png)](screenshots/settings.png)
+
+## Donation reminder
+
+[![Donation reminder dialog](screenshots/donation-dialog.png)](screenshots/donation-dialog.png)
