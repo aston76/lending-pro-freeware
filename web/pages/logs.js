@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — System Logs Page
+ * Lending Pro Freeware — System Logs Page
  * Display persistent logs for debugging. All errors, warnings and events
  * are shown here with date/time, and survive application restarts.
  */

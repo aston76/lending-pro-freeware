@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Dashboard Page
+ * Lending Pro Freeware — Dashboard Page
  */
 const DashboardPage = {
     async render() {
@@ -21,6 +21,25 @@ const DashboardPage = {
                 ${UI.statCard('trending-up', 'Interest Collected', UI.formatCurrency(stats.interest_collected), 'green', `from ${UI.formatCurrency(stats.total_collected)} received`)}
                 ${UI.statCard('alert-triangle', 'Default Rate', stats.delinquency_rate + '%', 'red', `${stats.defaulted_loans} defaulted loans`)}
                 ${UI.statCard('users', 'Total Clients', stats.client_count, 'purple', `${stats.active_loans} active borrowers`)}
+            </div>
+
+            <div class="mb-5 flex items-center justify-between gap-4 flex-wrap px-4 py-3 rounded-lg"
+                 style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.20);">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                         style="background:rgba(255,149,0,0.14); color:#B86700;">
+                        <i data-lucide="coffee" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold" style="color:var(--text-primary)">Soutenir le logiciel</p>
+                        <p class="text-xs" style="color:var(--text-tertiary)">Aidez à maintenir Lending Pro Freeware disponible gratuitement.</p>
+                    </div>
+                </div>
+                <button onclick="DonationSupport.show()" class="btn btn-sm flex items-center gap-1.5"
+                        style="background:#B86700; color:white; border:1px solid #B86700;">
+                    <i data-lucide="coffee" class="w-3.5 h-3.5"></i>
+                    <span>Don</span>
+                </button>
             </div>
 
             ${overdueAlerts.length > 0 ? `

@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Persistent Logger
+Lending Pro Freeware — Persistent Logger
 Logs all errors, warnings and events to a rotating file that survives restarts.
 Log file location: ~/Library/Application Support/PH-Lending/logs/app.log
 """

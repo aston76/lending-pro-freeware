@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — PDF Generator
+Lending Pro Freeware — PDF Generator
 Generates loan contracts and payment receipts using reportlab.
 """
 

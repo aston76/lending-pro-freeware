@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Loan Detail Page
+ * Lending Pro Freeware — Loan Detail Page
  * Beautiful amortization timeline, payment history, PDF & print.
  */
 const LoanDetailPage = {

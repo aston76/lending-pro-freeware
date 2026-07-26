@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Backup Module
+Lending Pro Freeware — Backup Module
 Local backup (DB + Excel + JSON) and Google Drive sync.
 """
 

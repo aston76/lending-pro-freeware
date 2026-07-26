@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Clients Page
+ * Lending Pro Freeware — Clients Page
  */
 const ClientsPage = {
     currentPage: 1,
@@ -396,7 +396,7 @@ const ClientsPage = {
                     `q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=7` +
                     `&countrycodes=ph&viewbox=123.65,10.4,124.2,9.8&bounded=0`;
                 const resp = await fetch(url, {
-                    headers: { 'Accept-Language': 'en', 'User-Agent': 'PH-Lending-Pro/1.0' }
+                    headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' }
                 });
                 const places = await resp.json();
 
@@ -484,7 +484,7 @@ const ClientsPage = {
             // Pas de coords : geocoder le texte saisi
             UI.toast('Localisation en cours…', 'info');
             fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1&countrycodes=ph',
-                { headers: { 'Accept-Language': 'en', 'User-Agent': 'PH-Lending-Pro/1.0' } })
+                { headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' } })
                 .then(function (r) { return r.json(); })
                 .then(function (results) {
                     if (results.length) {
@@ -507,7 +507,7 @@ const ClientsPage = {
         if (!address) return;
         UI.toast('Locating on map…', 'info');
         fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=ph`,
-            { headers: { 'Accept-Language': 'en', 'User-Agent': 'PH-Lending-Pro/1.0' } })
+            { headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' } })
             .then(r => r.json())
             .then(results => {
                 if (results.length) {

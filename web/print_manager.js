@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — PrintManager
+ * Lending Pro Freeware — PrintManager
  * Système d'impression contextuel intelligent.
  * - Bouton d'impression dans le header — adapte son action selon la page active
  * - Visualisateur PDF grand format (plein écran) intégré à l'app

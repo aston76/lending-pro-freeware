@@ -1,5 +1,5 @@
 """
-PH-Lending Pro — Excel Export Module (Selective)
+Lending Pro Freeware — Excel Export Module (Selective)
 Supports exporting specific sheets with optional date filtering.
 """
 

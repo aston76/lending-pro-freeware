@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PH-Lending Pro — macOS App Icon Generator
+Lending Pro Freeware — macOS App Icon Generator
 Generates icon.icns from a programmatic design using Pillow.
 Run once before building with PyInstaller.
 """
@@ -38,7 +38,7 @@ def create_png_bytes(size, bg_color, label):
         return None
 
 def generate_icns():
-    """Generate a macOS .icns file for PH-Lending Pro."""
+    """Generate a macOS .icns file for Lending Pro Freeware."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     iconset_dir = os.path.join(script_dir, 'AppIcon.iconset')
     icns_path = os.path.join(script_dir, 'icon.icns')

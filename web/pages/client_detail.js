@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Client Detail Page
+ * Lending Pro Freeware — Client Detail Page
  * Full client profile with photo, DTI, penalties, loans, documents, webcam, signature.
  */
 const ClientDetailPage = {

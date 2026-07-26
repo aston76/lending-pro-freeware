@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Main Application
+ * Lending Pro Freeware — Main Application
  * SPA Router, Apple Design, Sound Engine, pywebview API Bridge
  */
 
@@ -172,6 +172,70 @@ const SoundEngine = {
 
 };
 
+// Donation reminders are local-only. Ko-fi does not expose payment status to
+// this offline app, so users explicitly confirm when they no longer want them.
+const DonationSupport = {
+    url: 'https://ko-fi.com/astonswissapp',
+    lastPromptKey: 'lending-donation-last-prompt',
+    supportedKey: 'lending-donation-supported',
+
+    today() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    },
+
+    maybePrompt() {
+        if (localStorage.getItem(this.supportedKey) === 'true') return;
+        if (localStorage.getItem(this.lastPromptKey) === this.today()) return;
+        localStorage.setItem(this.lastPromptKey, this.today());
+        this.show();
+    },
+
+    show() {
+        UI.showModal('Soutenir Lending Pro Freeware', `
+            <div class="text-center space-y-4 py-2">
+                <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
+                     style="background:rgba(255,149,0,0.12); color:#B86700;">
+                    <i data-lucide="coffee" class="w-7 h-7"></i>
+                </div>
+                <div class="space-y-2">
+                    <p class="text-sm font-semibold" style="color:var(--text-primary)">
+                        Si vous appréciez mon logiciel, vous pouvez m'offrir un café.
+                    </p>
+                    <p class="text-sm" style="color:var(--text-secondary)">
+                        Don minimum conseillé : 5 €.
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2 justify-center pt-1">
+                    <button onclick="UI.closeModal()" class="btn btn-ghost">Plus tard</button>
+                    <button onclick="DonationSupport.markSupported()" class="btn btn-ghost">J'ai déjà soutenu</button>
+                    <button onclick="DonationSupport.open()" class="btn btn-primary">
+                        <i data-lucide="coffee" class="w-4 h-4"></i> Offrir un café
+                    </button>
+                </div>
+                <p class="text-[11px]" style="color:var(--text-tertiary)">
+                    La confirmation « J'ai déjà soutenu » désactive les rappels sur cet appareil.
+                </p>
+            </div>
+        `, { width: 'max-w-md' });
+    },
+
+    async open() {
+        const result = await App.api('open_url', this.url);
+        if (!result?.success) {
+            UI.toast(result?.error || 'Impossible d’ouvrir la page de don.', 'error');
+            return;
+        }
+        UI.closeModal();
+    },
+
+    markSupported() {
+        localStorage.setItem(this.supportedKey, 'true');
+        UI.closeModal();
+        UI.toast('Merci pour votre soutien. Les rappels sont désactivés.', 'success');
+    }
+};
+
 // ─── App ──────────────────────────────────────────────────────
 const App = {
     currentPage: 'dashboard',
@@ -181,7 +245,7 @@ const App = {
     sidebarOpen: false,
     calcExpression: '',
     calcLastResult: false,
-    appName: 'PH-Lending Pro',
+    appName: 'Lending Pro Freeware',
     isDemoOnly: false,
     isDemoEdition: false,
 
@@ -207,7 +271,7 @@ const App = {
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
-        if (versionLabel) versionLabel.textContent = `v1.1.0 - ${this.appName}`;
+        if (versionLabel) versionLabel.textContent = `v1.2.0 - ${this.appName}`;
         this.updateDemoControl();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();
@@ -222,8 +286,9 @@ const App = {
             }
         } catch (e) { }
 
-        this.navigate('dashboard');
+        await this.navigate('dashboard');
         lucide.createIcons();
+        DonationSupport.maybePrompt();
 
         // Load and refresh overdue alerts badge
         this.refreshAlertsBadge();
@@ -359,11 +424,11 @@ const App = {
             alerts: ['Overdue Alerts', 'Late paying clients & SMS notifications'],
             commissions: ['Referral Commissions', 'Track referral earnings'],
             settings: ['Settings', 'Application configuration and backup'],
-            help: ['Help & User Guide', 'Complete guide to using PH-Lending Pro'],
+            help: ['Help & User Guide', 'Complete guide to using Lending Pro Freeware'],
             logs: ['System Logs', 'Persistent logs — errors & events'],
         };
 
-        const [title, subtitle] = titles[page] || ['PH-Lending Pro', ''];
+        const [title, subtitle] = titles[page] || ['Lending Pro Freeware', ''];
         document.getElementById('page-title').textContent = title;
         document.getElementById('page-subtitle').textContent = subtitle;
 

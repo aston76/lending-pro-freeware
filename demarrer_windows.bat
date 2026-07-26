@@ -1,7 +1,7 @@
 @echo off
-title PH-Lending Pro
+title Lending Pro Freeware
 echo ==========================================
-echo       Lancement de PH-Lending Pro...
+echo       Lancement de Lending Pro Freeware...
 echo ==========================================
 echo.
 

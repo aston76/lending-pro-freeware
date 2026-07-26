@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Settings Page
+ * Lending Pro Freeware — Settings Page
  * Company settings with logo, loan defaults, export, backup, and Google Drive sync.
  */
 const SettingsPage = {
@@ -168,7 +168,7 @@ const SettingsPage = {
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Company Name</label>
-                                <input name="company_name" class="input" value="${settings.company_name || 'PH-Lending Pro'}">
+                                <input name="company_name" class="input" value="${settings.company_name || 'Lending Pro Freeware'}">
                             </div>
                             <div>
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Phone Number</label>
@@ -626,7 +626,7 @@ const SettingsPage = {
                 company_address: form.company_address.value
             });
             const nameEl = document.getElementById('sidebar-company-name');
-            if (nameEl) nameEl.textContent = form.company_name.value || 'PH-Lending';
+            if (nameEl) nameEl.textContent = form.company_name.value || App.appName;
         });
 
         AutoSave.attach(document.getElementById('defaults-form'), async () => {
@@ -732,7 +732,7 @@ const SettingsPage = {
         });
         // Update sidebar company name immediately
         const nameEl = document.getElementById('sidebar-company-name');
-        if (nameEl) nameEl.textContent = form.company_name.value || 'PH-Lending';
+        if (nameEl) nameEl.textContent = form.company_name.value || App.appName;
         UI.toast('Company settings saved!', 'success');
     },
 

@@ -1,4 +1,4 @@
-PH-LENDING PRO — GUIDE D'INSTALLATION WINDOWS
+LENDING PRO FREEWARE - GUIDE D'INSTALLATION WINDOWS
 ==============================================
 
 ETAPES D'INSTALLATION (3 actions seulement)
@@ -23,7 +23,7 @@ ETAPES D'INSTALLATION (3 actions seulement)
      Une fenetre noire affichera la progression.
      Ne la fermez PAS.
 
-  → Un raccourci "PH-Lending Pro" apparaitra sur votre Bureau.
+  → Un raccourci "Lending Pro Freeware" apparaitra sur votre Bureau.
     Double-cliquez dessus pour lancer l'application !
 
 
@@ -54,5 +54,5 @@ CONFIGURATION REQUISE
 
 
 --------------------------------------------------------------
-PH-Lending Pro  |  Tous droits reserves
+Lending Pro Freeware | Licence MIT
 --------------------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Alerts Page
+ * Lending Pro Freeware — Alerts Page
  * Overdue payment alerts + SMS notification system.
  * Dual-mode SMS: iPhone connected to Mac (Continuity) OR API (Semaphore/Twilio)
  */
@@ -259,7 +259,7 @@ const AlertsPage = {
 
         const settings = this._settings || {};
         const templates = this._templates || [];
-        const companyName = settings.company_name || 'PH-Lending';
+        const companyName = settings.company_name || App.appName;
         const companyPhone = settings.company_phone || '';
 
         const fillTemplate = (tpl) => {
@@ -396,7 +396,7 @@ const AlertsPage = {
         if (!tpl) return;
 
         const settings = this._settings || {};
-        const companyName = settings.company_name || 'PH-Lending';
+        const companyName = settings.company_name || App.appName;
         const companyPhone = settings.company_phone || '';
 
         const filled = tpl.text
@@ -590,7 +590,7 @@ const AlertsPage = {
         const method = document.querySelector('input[name="bulk-method"]:checked')?.value || 'phone';
         const tpl = this._templates[tplIndex];
         const settings = this._settings || {};
-        const companyName = settings.company_name || 'PH-Lending';
+        const companyName = settings.company_name || App.appName;
         const companyPhone = settings.company_phone || '';
 
         if (!tpl) {

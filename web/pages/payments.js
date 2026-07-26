@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — All Payments Page (Enhanced)
+ * Lending Pro Freeware — All Payments Page (Enhanced)
  * Shows payment history with: loan amount, paid total, remaining balance, months remaining.
  */
 const PaymentsPage = {

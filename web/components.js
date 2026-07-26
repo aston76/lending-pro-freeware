@@ -1,5 +1,5 @@
 /**
- * PH-Lending Pro — Reusable UI Components
+ * Lending Pro Freeware — Reusable UI Components
  * Modal, Toast, StarRating, DataTable, StatCard, MapOverlay
  */
 
@@ -149,7 +149,7 @@ const UI = {
                     // Reverse geocoding pour obtenir le label de la nouvelle position
                     fetch(
                         'https://nominatim.openstreetmap.org/reverse?lat=' + newLat + '&lon=' + newLon + '&format=json',
-                        { headers: { 'Accept-Language': 'en', 'User-Agent': 'PH-Lending-Pro/1.0' } }
+                        { headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' } }
                     )
                         .then(function (r) { return r.json(); })
                         .then(function (data) {

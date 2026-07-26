@@ -12,8 +12,8 @@ import sys
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
-APP_NAME = "PH-Lending Pro Demo"
-DMG_VOLUME_NAME = "PH-Lending Pro Demo Installer"
+APP_NAME = "Lending Pro Freeware"
+DMG_VOLUME_NAME = "Lending Pro Freeware Installer"
 BUNDLE_ID = "com.phlending.pro.demo"
 ARCHITECTURE = "arm64"
 BUILD_DIR = PROJECT_DIR / "build" / "macos-demo"
@@ -23,7 +23,7 @@ SPEC_DIR = BUILD_DIR / "spec"
 DMG_RW_PATH = BUILD_DIR / "installer-rw.dmg"
 RELEASE_DIR = PROJECT_DIR / "release"
 APP_PATH = DIST_DIR / f"{APP_NAME}.app"
-DMG_PATH = RELEASE_DIR / f"PH-Lending-Pro-Demo-macOS-{ARCHITECTURE}.dmg"
+DMG_PATH = RELEASE_DIR / f"Lending-Pro-Freeware-macOS-{ARCHITECTURE}.dmg"
 CHECKSUM_PATH = Path(str(DMG_PATH) + ".sha256")
 
 
@@ -132,11 +132,11 @@ def build_app():
     info.update({
         "CFBundleDisplayName": APP_NAME,
         "CFBundleName": APP_NAME,
-        "CFBundleShortVersionString": "1.1.0",
-        "CFBundleVersion": "3",
+        "CFBundleShortVersionString": "1.2.0",
+        "CFBundleVersion": "4",
         "LSMinimumSystemVersion": "12.0",
-        "NSCameraUsageDescription": "PH-Lending Pro Demo uses the camera to capture demo client photos.",
-        "NSPhotoLibraryUsageDescription": "PH-Lending Pro Demo imports files selected by the user.",
+        "NSCameraUsageDescription": "Lending Pro Freeware uses the camera to capture client photos.",
+        "NSPhotoLibraryUsageDescription": "Lending Pro Freeware imports files selected by the user.",
     })
     with info_path.open("wb") as handle:
         plistlib.dump(info, handle, sort_keys=True)
