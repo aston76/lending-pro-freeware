@@ -172,21 +172,34 @@ const SoundEngine = {
 
 };
 
-// Donation reminders are local-only. Ko-fi does not expose payment status to
-// this offline app, so users explicitly confirm when they no longer want them.
+// Donation reminder frequency is stored locally because this offline app does
+// not receive Ko-fi payment status.
 const DonationSupport = {
     url: 'https://ko-fi.com/astonswissapp',
-    installationId: '',
+    weekMs: 7 * 24 * 60 * 60 * 1000,
+    quarterMs: 90 * 24 * 60 * 60 * 1000,
+    lastPromptKey: 'lpf-donation-last-prompt-at',
+    donatedKey: 'lpf-donation-confirmed-at',
 
-    async init() {
-        this.installationId = await App.api('get_installation_id');
-    },
+    async init() {},
 
     maybePrompt() {
-        this.show();
+        const lastPrompt = Number(localStorage.getItem(this.lastPromptKey) || 0);
+        const interval = this.hasDonated() ? this.quarterMs : this.weekMs;
+        if (!Number.isFinite(lastPrompt) || Date.now() - lastPrompt >= interval) {
+            this.show(true);
+        }
     },
 
-    show() {
+    hasDonated() {
+        return Boolean(localStorage.getItem(this.donatedKey));
+    },
+
+    show(recordScheduledPrompt = false) {
+        if (recordScheduledPrompt) {
+            localStorage.setItem(this.lastPromptKey, String(Date.now()));
+        }
+        const reminder = this.hasDonated() ? I18n.t('quarterly') : I18n.t('weekly');
         UI.showModal(I18n.t('title'), `
             <div class="text-center space-y-4 py-2">
                 <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
@@ -201,26 +214,15 @@ const DonationSupport = {
                         ${I18n.t('minimum')}
                     </p>
                 </div>
-                <div class="p-3 rounded-lg text-left" style="background:var(--surface-2); border:1px solid var(--surface-3);">
-                    <p class="text-[11px] font-semibold mb-1" style="color:var(--text-tertiary)">${I18n.t('installation')}</p>
-                    <div class="flex items-center justify-between gap-2">
-                        <code class="text-xs break-all" style="color:var(--text-primary)">${this.installationId}</code>
-                        <button onclick="DonationSupport.copyInstallationId()" class="btn btn-icon btn-ghost flex-shrink-0" title="${I18n.x('copy')}">
-                            <i data-lucide="copy" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <p class="text-[11px] mt-2" style="color:var(--text-tertiary)">
-                        ${I18n.x('instruction')}
-                    </p>
-                </div>
                 <div class="flex flex-wrap gap-2 justify-center pt-1">
                     <button onclick="UI.closeModal()" class="btn btn-ghost">${I18n.t('later')}</button>
+                    <button onclick="DonationSupport.confirmDonation()" class="btn btn-ghost">${I18n.t('donated')}</button>
                     <button onclick="DonationSupport.open()" class="btn btn-primary">
                         <i data-lucide="coffee" class="w-4 h-4"></i> ${I18n.t('coffee')}
                     </button>
                 </div>
                 <p class="text-[11px]" style="color:var(--text-tertiary)">
-                    ${I18n.x('reminder')}
+                    ${reminder}
                 </p>
             </div>
         `, { width: 'max-w-md' });
@@ -235,13 +237,12 @@ const DonationSupport = {
         UI.closeModal();
     },
 
-    async copyInstallationId() {
-        try {
-            await navigator.clipboard.writeText(this.installationId);
-            UI.toast('Identifiant copié.', 'success');
-        } catch (error) {
-            UI.toast('Impossible de copier l’identifiant.', 'error');
-        }
+    confirmDonation() {
+        const now = String(Date.now());
+        localStorage.setItem(this.donatedKey, now);
+        localStorage.setItem(this.lastPromptKey, now);
+        UI.closeModal();
+        UI.toast(I18n.t('thanks'), 'success');
     }
 };
 
@@ -282,7 +283,7 @@ const App = {
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
-        if (versionLabel) versionLabel.textContent = `v1.3.0 - ${this.appName}`;
+        if (versionLabel) versionLabel.textContent = `v1.3.1 - ${this.appName}`;
         this.updateDemoControl();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();

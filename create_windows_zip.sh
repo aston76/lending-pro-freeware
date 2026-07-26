@@ -30,7 +30,6 @@ echo ""
 zip -r "$ZIP_FILE" \
     "main.py" \
     "app_config.py" \
-    "installation_id.py" \
     "currency_utils.py" \
     "api.py" \
     "database.py" \

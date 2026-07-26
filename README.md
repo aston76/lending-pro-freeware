@@ -83,7 +83,7 @@ See [SECURITY.md](SECURITY.md) for responsible vulnerability reporting.
 
 Lending Pro Freeware remains free to use. You can support its maintenance with a donation of **€5 or more** through [Ko-fi](https://ko-fi.com/astonswissapp).
 
-The dashboard always keeps a **Don** button available. Every installation receives an anonymous local ID that can be included in the Ko-fi message. There is no manual bypass: the reminder returns at launch until a payment associated with that ID can be verified by the creator's Ko-fi webhook service.
+The dashboard always keeps a **Don** button available. The automatic reminder appears at most once every 7 days. After the user locally confirms that a donation was made, it appears at most once every 90 days. This preference stays on the device and does not claim to verify Ko-fi payment status.
 
 ## Contributing
 
