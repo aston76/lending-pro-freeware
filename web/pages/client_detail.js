@@ -791,7 +791,7 @@ const ClientDetailPage = {
                     <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block" style="color:var(--text-tertiary)">Message de test</label>
                     <textarea id="test-sms-message" rows="3"
                         class="input w-full font-mono text-sm resize-none"
-                        placeholder="Test message">PH-Lending Pro test: this number is configured to receive notifications.</textarea>
+                        placeholder="Test message">${App.appName} test: this number is configured to receive notifications.</textarea>
                 </div>
 
                 <div class="flex gap-3 justify-end pt-2" style="border-top: 0.5px solid var(--surface-2);">

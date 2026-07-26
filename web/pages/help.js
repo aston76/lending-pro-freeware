@@ -65,7 +65,7 @@ const HelpPage = {
                             <li>• <strong>Referred By</strong> — if this client was referred by another existing client (automatically generates a commission)</li>
                         </ul>
                         <div class="help-tip mt-2">
-                            <strong>Tip:</strong> The client ID is generated automatically in the format <code>PH-YYYY-NNN</code> (for example, PH-2026-001).
+                            <strong>Tip:</strong> The client ID is generated automatically in the format <code>PH-YYYY-NNN</code>.
                         </div>
                     </div>
                     <div>
@@ -471,6 +471,14 @@ const HelpPage = {
 
     render() {
         const content = document.getElementById('page-content');
+        const dataFolder = App.isDemoOnly ? 'PH-Lending Demo' : 'PH-Lending';
+        const sections = this.sections.map(section => ({
+            ...section,
+            content: section.content.replaceAll(
+                '~/Library/Application Support/PH-Lending/',
+                `~/Library/Application Support/${dataFolder}/`
+            )
+        }));
         content.innerHTML = `
             <div class="max-w-3xl mx-auto pb-8">
 
@@ -482,7 +490,7 @@ const HelpPage = {
                             <i data-lucide="book-open" class="w-7 h-7 text-white"></i>
                         </div>
                         <div>
-                            <h2 class="text-xl font-bold text-gray-800 dark:text-white">PH-Lending Pro — Complete Guide</h2>
+                            <h2 class="text-xl font-bold text-gray-800 dark:text-white">${App.appName} — Complete Guide</h2>
                             <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                                 Everything you need to know to use the application like a pro. Click each section to expand.
                             </p>
@@ -499,7 +507,7 @@ const HelpPage = {
 
                 <!-- Accordion Sections -->
                 <div id="help-sections" class="space-y-2">
-                    ${this.sections.map((s, i) => `
+                    ${sections.map((s, i) => `
                         <div class="help-section glass-card" id="help-sec-${i}">
                             <div class="help-section-header" aria-expanded="false"
                                  onclick="HelpPage.toggle(${i})">
@@ -525,7 +533,7 @@ const HelpPage = {
                     <p class="text-xs text-gray-400 dark:text-slate-500">
                         <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
                         Need more help? Check the source code or contact the developer.
-                        Version ${new Date().getFullYear()} · PH-Lending Pro
+                        Version ${new Date().getFullYear()} · ${App.appName}
                     </p>
                 </div>
             </div>

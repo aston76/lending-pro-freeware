@@ -9,6 +9,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+from app_config import APP_NAME
 from database import get_connection, rows_to_list, APP_SUPPORT_DIR, BACKUP_DIR
 
 
@@ -67,7 +68,7 @@ def _add_summary_sheet(wb, conn, date_from=None, date_to=None):
     fill_blue  = PatternFill(start_color='2563EB', end_color='2563EB', fill_type='solid')
     data_font  = Font(name='Calibri', size=10)
 
-    ws['A1'] = 'PH-Lending Pro — Export Summary'
+    ws['A1'] = f'{APP_NAME} — Export Summary'
     ws['A1'].font = title_font
     ws['B1'] = datetime.now().strftime('%Y-%m-%d %H:%M')
     ws['B1'].font = Font(name='Calibri', size=10, color='6B7280')

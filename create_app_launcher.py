@@ -17,6 +17,7 @@ ICNS_PATH = os.path.join(PROJECT_DIR, "icon.icns")
 REQUIREMENTS_PATH = os.path.join(PROJECT_DIR, "requirements.txt")
 
 APP_PYTHON_FILES = [
+    "app_config.py",
     "api.py",
     "backup.py",
     "database.py",

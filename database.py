@@ -5,21 +5,13 @@ SQLite3 schema initialization, connection management, migrations, and profile ma
 
 import sqlite3
 import os
-import sys
 import json
 from datetime import datetime
 
-# App data directory — cross-platform
-if sys.platform == "win32":
-    # Windows: C:\Users\<User>\AppData\Roaming\PH-Lending
-    _base = os.environ.get("APPDATA", os.path.expanduser("~"))
-    APP_SUPPORT_DIR = os.path.join(_base, "PH-Lending")
-elif sys.platform == "darwin":
-    # macOS: ~/Library/Application Support/PH-Lending
-    APP_SUPPORT_DIR = os.path.expanduser("~/Library/Application Support/PH-Lending")
-else:
-    # Linux : ~/.local/share/PH-Lending
-    APP_SUPPORT_DIR = os.path.expanduser("~/.local/share/PH-Lending")
+from app_config import APP_NAME, get_app_support_dir
+
+# Each packaged edition gets its own isolated writable data directory.
+APP_SUPPORT_DIR = get_app_support_dir()
 
 MEDIA_DIR = os.path.join(APP_SUPPORT_DIR, "media")
 BACKUP_DIR = os.path.join(APP_SUPPORT_DIR, "backups")
@@ -435,7 +427,7 @@ def init_database():
         "default_interest_type": "fixed",
         "currency": "PHP",
         "dark_mode": "true",
-        "company_name": "PH-Lending Pro",
+        "company_name": APP_NAME,
         "company_phone": "",
         "company_address": "",
         "company_contact": ""

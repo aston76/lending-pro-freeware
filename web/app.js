@@ -181,6 +181,8 @@ const App = {
     sidebarOpen: false,
     calcExpression: '',
     calcLastResult: false,
+    appName: 'PH-Lending Pro',
+    isDemoOnly: false,
 
     // ─── Initialize ──────────────────────────────────────────
     async init() {
@@ -197,7 +199,13 @@ const App = {
         this.applyColorTheme(savedColor);
         this.updateThemeUI();
         this.checkOnlineStatus();
-        this.isDemoMode = await pywebview.api.get_demo_status();
+        const appMode = await pywebview.api.get_app_mode();
+        this.appName = appMode.name || this.appName;
+        this.isDemoOnly = Boolean(appMode.demo_only);
+        this.isDemoMode = Boolean(appMode.demo_active);
+        document.title = this.appName;
+        const versionLabel = document.getElementById('sidebar-version');
+        if (versionLabel) versionLabel.textContent = `v1.1.0 - ${this.appName}`;
         this.updateDemoBadge();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();
@@ -269,7 +277,7 @@ const App = {
                 badge.id = 'demo-badge';
                 badge.className = 'ml-2 px-2 py-0.5 text-[10px] font-bold tracking-wider rounded-full animate-pulse';
                 badge.style.cssText = 'background: rgba(255,149,0,0.15); color: #FF9500; border: 1px solid rgba(255,149,0,0.3);';
-                badge.textContent = 'DEMO';
+                badge.textContent = this.isDemoOnly ? 'DEMO EDITION' : 'DEMO';
                 titleEl.after(badge);
             }
         } else if (badge) {
@@ -458,7 +466,7 @@ const App = {
 
     // ─── Quit ────────────────────────────────────────────────
     quitApp() {
-        UI.showModal('Quit PH-Lending Pro?', `
+        UI.showModal(`Quit ${this.appName}?`, `
             <div class="text-center space-y-4 py-2">
                 <div class="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
                      style="background:rgba(255,59,48,0.10)">

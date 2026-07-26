@@ -35,6 +35,7 @@ token.json
 # Build / packaging outputs
 build/
 dist/
+release/
 *.spec
 *.zip
 *.tar

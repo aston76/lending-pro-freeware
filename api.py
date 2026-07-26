@@ -16,11 +16,13 @@ import base64
 import subprocess
 import webbrowser
 import traceback
+import threading
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 
 import logger as app_logger  # persistent error logger
+from app_config import APP_NAME, DEMO_ONLY
 
 from database import (
     get_connection, dict_from_row, rows_to_list,
@@ -188,9 +190,30 @@ class Api:
     """API class exposed to the pywebview JavaScript frontend."""
 
     def __init__(self):
-        load_active_profile()  # Restore active profile from saved metadata
+        self._demo_only = DEMO_ONLY
+        self._is_demo = DEMO_ONLY
+        self._window = None
+        self._server = None
+        self._shutdown_started = False
+        self._shutdown_lock = threading.Lock()
+        if DEMO_ONLY:
+            set_demo_mode(True)
+        else:
+            load_active_profile()
         init_database()
-        self._is_demo = False
+        if DEMO_ONLY:
+            self._ensure_demo_data()
+
+    def _ensure_demo_data(self):
+        """Populate the isolated demo database when it is empty."""
+        conn = get_connection()
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM clients").fetchone()[0]
+        finally:
+            conn.close()
+        if count == 0:
+            import demo_generator
+            demo_generator.generate_demo_data()
 
     def _audit_event(self, cursor, event_type, entity_type, entity_id="", details=None):
         """Write a compact business audit event inside the caller transaction."""
@@ -290,22 +313,21 @@ class Api:
 
     def toggle_demo_mode(self, enabled):
         """Toggle demo mode (uses a separate prepopulated database)."""
+        enabled = bool(enabled)
+        if self._demo_only and not enabled:
+            return {
+                "success": False,
+                "demo_active": True,
+                "error": "This distribution is locked to demo mode.",
+            }
         self._is_demo = enabled
         set_demo_mode(enabled)
-        # Verify if demo DB is empty and auto-generate if needed
         if enabled:
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute("SELECT COUNT(*) FROM clients")
-            count = c.fetchone()[0]
-            conn.close()
-            if count == 0:
-                try:
-                    import demo_generator
-                    demo_generator.generate_demo_data()
-                except Exception as e:
-                    app_logger.log_exception("toggle_demo_mode > generate_demo_data", e)
-                    print(f"Error generating demo data: {e}")
+            try:
+                self._ensure_demo_data()
+            except Exception as e:
+                app_logger.log_exception("toggle_demo_mode > generate_demo_data", e)
+                return {"success": False, "demo_active": True, "error": str(e)}
         app_logger.info("Demo mode set to: %s", enabled)
         return {"success": True, "demo_active": enabled}
 
@@ -341,6 +363,14 @@ class Api:
     def get_demo_status(self):
         """Check if demo mode is active."""
         return self._is_demo
+
+    def get_app_mode(self):
+        """Return immutable distribution capabilities for the frontend."""
+        return {
+            "name": APP_NAME,
+            "demo_only": self._demo_only,
+            "demo_active": self._is_demo,
+        }
 
     def open_file(self, file_path):
         """Open any existing file or directory natively."""
@@ -2036,6 +2066,8 @@ class Api:
 
     def restore_backup(self, backup_name):
         """Restore the active profile database from a named local backup."""
+        if self._demo_only:
+            return {"success": False, "error": "Backup restore is disabled in Demo Edition."}
         try:
             result = restore_local_backup(backup_name)
             init_database()
@@ -2136,7 +2168,8 @@ class Api:
         """Get application info."""
         return {
             "version": "1.1.0",
-            "name": "PH-Lending Pro",
+            "name": APP_NAME,
+            "demo_only": self._demo_only,
             "data_dir": APP_SUPPORT_DIR,
             "db_path": get_db_path(),
             "media_dir": MEDIA_DIR,
@@ -2149,6 +2182,8 @@ class Api:
 
     def get_profiles(self):
         """Get all profiles with sizes."""
+        if self._demo_only:
+            return []
         try:
             profiles = db_get_profiles()
             for p in profiles:
@@ -2177,6 +2212,8 @@ class Api:
 
     def get_active_profile_info(self):
         """Get the currently active profile."""
+        if self._demo_only:
+            return {"id": "demo", "name": "Demo Edition", "is_active": True}
         try:
             return db_get_active_profile()
         except Exception as e:
@@ -2185,6 +2222,8 @@ class Api:
 
     def create_new_profile(self, name, description="", color="#007AFF"):
         """Create a new profile."""
+        if self._demo_only:
+            return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             if not name or not name.strip():
                 return {"success": False, "error": "Profile name is required."}
@@ -2197,6 +2236,8 @@ class Api:
 
     def switch_active_profile(self, profile_id):
         """Switch to a different profile. Re-initializes the database connection."""
+        if self._demo_only:
+            return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             result = db_switch_profile(profile_id)
             if result:
@@ -2210,6 +2251,8 @@ class Api:
 
     def rename_existing_profile(self, profile_id, new_name, new_description=None, new_color=None):
         """Rename a profile."""
+        if self._demo_only:
+            return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             result = db_rename_profile(profile_id, new_name, new_description, new_color)
             if result:
@@ -2221,6 +2264,8 @@ class Api:
 
     def delete_existing_profile(self, profile_id):
         """Delete a profile (cannot delete 'default')."""
+        if self._demo_only:
+            return {"success": False, "error": "Profiles are disabled in Demo Edition."}
         try:
             result = db_delete_profile(profile_id)
             if result:
@@ -2234,6 +2279,8 @@ class Api:
 
     def reset_current_profile(self):
         """Wipe ALL data in the current profile. Settings stay. Backup is forced first."""
+        if self._demo_only:
+            return {"success": False, "error": "Use Regenerate Demo Data in Demo Edition."}
         try:
             try:
                 from backup import backup_local
@@ -2591,6 +2638,30 @@ end tell
         conn.close()
         return True
 
+    def shutdown_services(self, force_backup=True):
+        """Stop backups and the local HTTP server exactly once."""
+        with self._shutdown_lock:
+            if self._shutdown_started:
+                return {"backup": None, "already_stopped": True}
+            self._shutdown_started = True
+
+        result = {"backup": None, "services_stopped": True}
+        if force_backup:
+            try:
+                result["backup"] = backup_local()
+            except Exception as e:
+                result["backup_error"] = str(e)
+
+        server = self._server
+        self._server = None
+        if server is not None:
+            try:
+                server.shutdown()
+                server.server_close()
+            except Exception as e:
+                result["server_error"] = str(e)
+        return result
+
     def quit_app(self, force_backup=True):
         """
         Gracefully quit the application:
@@ -2598,13 +2669,8 @@ end tell
         2. Close the pywebview window
         3. Exit the Python process
         """
-        result = {"backup": None, "quitting": True}
-        if force_backup:
-            try:
-                backup_result = backup_local()
-                result["backup"] = backup_result
-            except Exception as e:
-                result["backup_error"] = str(e)
+        result = self.shutdown_services(force_backup=force_backup)
+        result["quitting"] = True
 
         # Destroy the window (triggers pywebview shutdown loop to exit)
         try:
@@ -2613,13 +2679,12 @@ end tell
         except Exception:
             pass
 
-        # Force exit in case destroy doesn't fire
-        import threading
+        # Final fallback if the native webview does not return after destroy.
         def _exit():
             import time
-            time.sleep(0.8)
+            time.sleep(2.0)
             import os as _os
-            _os.kill(_os.getpid(), 9)
+            _os._exit(0)
         threading.Thread(target=_exit, daemon=True).start()
 
         return result

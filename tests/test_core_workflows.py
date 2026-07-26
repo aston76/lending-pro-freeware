@@ -7,6 +7,7 @@ import sys
 
 
 PROJECT_MODULES = [
+    "app_config",
     "api",
     "backup",
     "database",
@@ -453,3 +454,50 @@ def test_financial_pdfs_render_with_explicit_rate_semantics(tmp_path, monkeypatc
         pdf_generator.generate_amortization_pdf(created["loan_id"]),
     ):
         assert base64.b64decode(pdf_data).startswith(b"%PDF")
+
+
+def test_demo_distribution_is_isolated_and_cannot_be_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("PH_LENDING_DEMO_ONLY", "1")
+    api_obj, _, database, _ = fresh_api(tmp_path, monkeypatch)
+
+    mode = api_obj.get_app_mode()
+    assert mode == {
+        "name": "PH-Lending Pro Demo",
+        "demo_only": True,
+        "demo_active": True,
+    }
+    assert api_obj.get_demo_status() is True
+    assert api_obj.get_profiles() == []
+    assert api_obj.toggle_demo_mode(False)["success"] is False
+    assert api_obj.restore_backup("anything")["success"] is False
+    assert api_obj.create_new_profile("Private")["success"] is False
+    assert database.get_db_path().endswith("PH-Lending Demo/phlending_demo.db")
+    assert not os.path.exists(os.path.join(database.APP_SUPPORT_DIR, "phlending.db"))
+    assert len(api_obj.get_all_clients_simple()) > 0
+
+
+def test_shutdown_stops_local_server_once(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+
+    class FakeServer:
+        shutdown_calls = 0
+        close_calls = 0
+
+        def shutdown(self):
+            self.shutdown_calls += 1
+
+        def server_close(self):
+            self.close_calls += 1
+
+    server = FakeServer()
+    api_obj._server = server
+
+    result = api_obj.shutdown_services(force_backup=False)
+    assert result["services_stopped"] is True
+    assert server.shutdown_calls == 1
+    assert server.close_calls == 1
+    assert api_obj._server is None
+
+    repeated = api_obj.shutdown_services(force_backup=False)
+    assert repeated["already_stopped"] is True
+    assert server.shutdown_calls == 1

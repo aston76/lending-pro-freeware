@@ -12,17 +12,10 @@ import threading
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
+from app_config import APP_NAME, get_app_support_dir
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
-if sys.platform == "win32":
-    # Windows: C:\Users\<User>\AppData\Roaming\PH-Lending
-    _base = os.environ.get("APPDATA", os.path.expanduser("~"))
-    APP_SUPPORT_DIR = os.path.join(_base, "PH-Lending")
-elif sys.platform == "darwin":
-    # macOS: ~/Library/Application Support/PH-Lending
-    APP_SUPPORT_DIR = os.path.expanduser("~/Library/Application Support/PH-Lending")
-else:
-    # Linux / autres : ~/.local/share/PH-Lending
-    APP_SUPPORT_DIR = os.path.expanduser("~/.local/share/PH-Lending")
+APP_SUPPORT_DIR = get_app_support_dir()
 
 LOG_DIR = os.path.join(APP_SUPPORT_DIR, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
@@ -31,7 +24,7 @@ LOG_FILE = os.path.join(LOG_DIR, "app.log")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Create the main logger
-_logger = logging.getLogger("PH-Lending")
+_logger = logging.getLogger(APP_NAME)
 _logger.setLevel(logging.DEBUG)
 
 # Formatter with rich context
@@ -89,14 +82,14 @@ def log_api_call(method_name: str, args_summary: str = ""):
 def log_startup():
     """Log application startup."""
     _logger.info("=" * 70)
-    _logger.info("PH-Lending Pro STARTED — %s", datetime.now().strftime("%A %d %B %Y à %H:%M:%S"))
+    _logger.info("%s STARTED - %s", APP_NAME, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     _logger.info("Log file: %s", LOG_FILE)
     _logger.info("Python: %s", sys.version.split()[0])
     _logger.info("=" * 70)
 
 def log_shutdown():
     """Log application shutdown."""
-    _logger.info("PH-Lending Pro SHUTDOWN — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    _logger.info("%s SHUTDOWN - %s", APP_NAME, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     _logger.info("-" * 70)
 
 # ── Global exception hook ───────────────────────────────────────────────────────

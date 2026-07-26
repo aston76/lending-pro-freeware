@@ -6,17 +6,18 @@ const SettingsPage = {
     async render() {
         const content = document.getElementById('page-content');
         const settings = await App.api('get_settings');
-        const backupInfo = await App.api('get_backup_info');
-        const backups = await App.api('get_backups_list');
-        const driveSetup = await App.api('is_drive_setup');
         const appInfo = await App.api('get_app_info');
         const logo = await App.api('get_logo_base64');
-        const profiles = await App.api('get_profiles');
-        const activeProfile = profiles.find(p => p.is_active) || profiles[0];
+        const backupInfo = App.isDemoOnly ? null : await App.api('get_backup_info');
+        const backups = App.isDemoOnly ? [] : await App.api('get_backups_list');
+        const driveSetup = App.isDemoOnly ? false : await App.api('is_drive_setup');
+        const profiles = App.isDemoOnly ? [] : await App.api('get_profiles');
+        const activeProfile = profiles.find(p => p.is_active) || profiles[0] || {};
 
         content.innerHTML = `
             <div class="max-w-3xl mx-auto space-y-6">
 
+                ${!App.isDemoOnly ? `
                 <!-- ═══ Profiles ═══ -->
                 <div class="glass-card p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -115,7 +116,7 @@ const SettingsPage = {
                             Warning: this permanently deletes all data in <strong>${activeProfile.name}</strong>. A backup is created first. Type <code style="background:var(--surface-2); padding:1px 4px; border-radius:4px;">RESET</code> to confirm.
                         </p>
                     </div>
-                </div>
+                </div>` : ''}
 
                 <!-- Company Settings + Logo -->
                 <div class="glass-card p-6">
@@ -419,6 +420,7 @@ const SettingsPage = {
                     </div>
                 </div>
 
+                ${!App.isDemoOnly ? `
                 <!-- Backup -->
                 <div class="glass-card p-6">
                     <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
@@ -467,7 +469,7 @@ const SettingsPage = {
                             </div>
                         </div>
                     ` : ''}
-                </div>
+                </div>` : ''}
 
                 <!-- Appearance / Color Themes — Apple style -->
                 <div class="glass-card p-6">
@@ -557,11 +559,15 @@ const SettingsPage = {
                             <i data-lucide="info" class="w-5 h-5 text-gray-500"></i> Application Info
                         </h3>
                         <div class="flex items-center gap-2">
+                            ${App.isDemoOnly ? `
+                            <span class="badge badge-pending">Demo Edition</span>
+                            ` : `
                             <span class="text-sm font-semibold text-gray-600 dark:text-slate-400">Demo Mode</span>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" class="sr-only peer" ${App.isDemoMode ? 'checked' : ''} onchange="SettingsPage.toggleDemo(this.checked)">
                                 <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-amber-500"></div>
                             </label>
+                            `}
                         </div>
                     </div>
                     ${App.isDemoMode ? `
@@ -574,10 +580,10 @@ const SettingsPage = {
                                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                 Regenerate Demo Data
                             </button>
-                            <button onclick="SettingsPage.toggleDemo(false)"
+                            ${!App.isDemoOnly ? `<button onclick="SettingsPage.toggleDemo(false)"
                                 class="btn btn-sm btn-ghost">
                                 Disable Demo
-                            </button>
+                            </button>` : ''}
                         </div>
                     </div>` : ''}
                     <div class="space-y-2 text-sm">
@@ -596,12 +602,14 @@ const SettingsPage = {
         lucide.createIcons();
 
         // Init password toggle state
-        App.api('is_password_protected').then(enabled => {
-            const toggle = document.getElementById('password-toggle');
-            const configBtn = document.getElementById('password-config-btn');
-            if (toggle) toggle.checked = enabled;
-            if (configBtn) configBtn.style.display = enabled ? '' : 'none';
-        });
+        if (!App.isDemoOnly) {
+            App.api('is_password_protected').then(enabled => {
+                const toggle = document.getElementById('password-toggle');
+                const configBtn = document.getElementById('password-config-btn');
+                if (toggle) toggle.checked = enabled;
+                if (configBtn) configBtn.style.display = enabled ? '' : 'none';
+            });
+        }
 
         // Attach AutoSave
         AutoSave.attach(document.getElementById('company-form'), async () => {
@@ -631,11 +639,19 @@ const SettingsPage = {
     },
 
     async toggleDemo(enabled) {
+        if (App.isDemoOnly && !enabled) {
+            UI.toast('Demo Edition cannot leave demo mode.', 'warning');
+            return;
+        }
         if (enabled) {
             UI.toast('Activating Demo Mode, generating data...', 'info');
         }
-        await App.api('toggle_demo_mode', enabled);
-        App.isDemoMode = enabled;
+        const result = await App.api('toggle_demo_mode', enabled);
+        if (!result.success) {
+            UI.toast(result.error || 'Unable to change demo mode.', 'error');
+            return;
+        }
+        App.isDemoMode = Boolean(result.demo_active);
         App.updateDemoBadge();
         App.navigate('dashboard');
         UI.toast(enabled ? 'Demo Mode Activated' : 'Demo Mode Disabled', 'success');

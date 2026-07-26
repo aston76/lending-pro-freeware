@@ -17,6 +17,7 @@ from reportlab.platypus import (
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
+from app_config import APP_NAME
 from database import get_connection, dict_from_row, rows_to_list, APP_SUPPORT_DIR
 
 
@@ -77,7 +78,7 @@ def _get_company_info():
     conn.close()
     info = {r['key']: r['value'] for r in rows}
     return {
-        'name': info.get('company_name', 'PH-Lending Pro'),
+        'name': info.get('company_name', APP_NAME),
         'address': info.get('company_address', ''),
         'contact': info.get('company_contact', '')
     }
@@ -642,7 +643,7 @@ def generate_amortization_pdf(loan_id, output_path=None):
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#e2e8f0')))
     elements.append(Spacer(1, 2*mm))
     elements.append(Paragraph(
-        f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} - PH-Lending Pro",
+        f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} - {APP_NAME}",
         styles['SmallText']
     ))
 
