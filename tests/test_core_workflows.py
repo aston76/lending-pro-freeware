@@ -56,6 +56,18 @@ def test_currency_setting_is_validated_and_persisted(tmp_path, monkeypatch):
     assert api_obj.get_settings()["currency"] == "PHP"
 
 
+def test_light_theme_is_default_and_dark_theme_remains_available():
+    project_root = Path(__file__).resolve().parents[1]
+    index_source = (project_root / "web" / "index.html").read_text(encoding="utf-8")
+    app_source = (project_root / "web" / "app.js").read_text(encoding="utf-8")
+    styles_source = (project_root / "web" / "styles.css").read_text(encoding="utf-8")
+
+    assert '<html lang="en">' in index_source
+    assert "darkMode: false" in app_source
+    assert "savedTheme === 'dark'" in app_source
+    assert ".dark {" in styles_source
+
+
 def make_client(api_obj, first_name="Ana", last_name="Diaz"):
     return api_obj.create_client({
         "first_name": first_name,

@@ -250,7 +250,7 @@ const DonationSupport = {
 const App = {
     currentPage: 'dashboard',
     currentParams: {},
-    darkMode: true,
+    darkMode: false,
     currentTheme: 'blue',
     sidebarOpen: false,
     calcExpression: '',
@@ -268,7 +268,10 @@ const App = {
         }
 
         const savedTheme = localStorage.getItem('ph-lending-theme');
-        if (savedTheme === 'light') {
+        if (savedTheme === 'dark') {
+            this.darkMode = true;
+            document.documentElement.classList.add('dark');
+        } else {
             this.darkMode = false;
             document.documentElement.classList.remove('dark');
         }
@@ -283,7 +286,7 @@ const App = {
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
-        if (versionLabel) versionLabel.textContent = `v1.3.1 - ${this.appName}`;
+        if (versionLabel) versionLabel.textContent = `v1.3.2 - ${this.appName}`;
         this.updateDemoControl();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();
@@ -527,11 +530,11 @@ const App = {
         const label = document.getElementById('theme-label');
         if (!icon || !label) return;
         if (this.darkMode) {
-            icon.setAttribute('data-lucide', 'moon');
-            label.textContent = 'Dark Mode';
-        } else {
             icon.setAttribute('data-lucide', 'sun');
             label.textContent = 'Light Mode';
+        } else {
+            icon.setAttribute('data-lucide', 'moon');
+            label.textContent = 'Dark Mode';
         }
         lucide.createIcons();
     },

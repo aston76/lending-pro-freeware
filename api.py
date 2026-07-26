@@ -2172,7 +2172,7 @@ class Api:
     def get_app_info(self):
         """Get application info."""
         return {
-            "version": "1.3.1",
+            "version": "1.3.2",
             "name": APP_NAME,
             "demo_only": self._is_restricted_demo(),
             "demo_edition": self._demo_only,
