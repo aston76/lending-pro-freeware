@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 - 2026-07-26
+
+- Changed the donation reminder to appear at most once every 7 days.
+- Changed the reminder interval to 90 days after local donation confirmation.
+- Removed the unused installation ID and future license-verification design.
+- Localized the new reminder and confirmation labels in all 17 supported donation-dialog languages.
+
 ## 1.3.0 - 2026-07-26
 
 - Added a checksum-verified command-line installer for Apple Silicon macOS.

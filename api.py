@@ -23,7 +23,6 @@ from dateutil.relativedelta import relativedelta
 
 import logger as app_logger  # persistent error logger
 from app_config import APP_NAME, DEMO_ONLY
-from installation_id import get_installation_id
 from currency_utils import normalize_currency
 
 from database import (
@@ -375,10 +374,6 @@ class Api:
             "demo_edition": self._demo_only,
             "demo_active": self._is_demo,
         }
-
-    def get_installation_id(self):
-        """Return the anonymous ID used to associate future donation receipts."""
-        return get_installation_id()
 
     def open_file(self, file_path):
         """Open any existing file or directory natively."""
@@ -2177,7 +2172,7 @@ class Api:
     def get_app_info(self):
         """Get application info."""
         return {
-            "version": "1.3.0",
+            "version": "1.3.1",
             "name": APP_NAME,
             "demo_only": self._is_restricted_demo(),
             "demo_edition": self._demo_only,
