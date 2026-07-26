@@ -1,11 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/demo.gif" alt="Lending Pro Freeware in action" width="860">
-</p>
-
-<h1 align="center">Lending Pro Freeware</h1>
-
-<p align="center">
-  A free, private, offline-first desktop app for lenders, moneylenders, cooperatives and microfinance agents to manage clients, loans, repayments, collections, penalties and documents — with no subscription, no cloud lock-in and no telemetry.
+  <a href="docs/screenshots/banner.png"><img src="docs/screenshots/banner.png" alt="Lending Pro Freeware"></a>
 </p>
 
 <p align="center">
@@ -16,6 +10,19 @@
   <img alt="Currencies" src="https://img.shields.io/badge/currencies-22-0A84FF">
   <img alt="Languages" src="https://img.shields.io/badge/UI%20languages-17-BF5AF2">
   <img alt="Tests" src="https://img.shields.io/badge/tests-passing-34C759">
+</p>
+
+<p align="center"><em>A free, private, offline-first desktop app for lenders, moneylenders, cooperatives and microfinance agents — manage clients, loans, repayments, collections, penalties and documents, with no subscription, no cloud lock-in and no telemetry.</em></p>
+
+<p align="center">
+  <a href="https://github.com/aston76/lending-pro-freeware/releases/latest"><strong>Download for macOS</strong></a> &nbsp;·&nbsp;
+  <a href="docs/SCREENSHOTS.md">Screenshots</a> &nbsp;·&nbsp;
+  <a href="#install-on-macos">Install in one command</a>
+</p>
+
+<p align="center">
+  <sub>Animated tour — Dashboard · Loans · Payments · Client profile</sub><br>
+  <a href="docs/screenshots/dashboard-demo.png"><img src="docs/screenshots/demo.gif" alt="Lending Pro Freeware animated tour" width="720"></a>
 </p>
 
 ---
