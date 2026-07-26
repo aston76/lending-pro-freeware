@@ -21,4 +21,4 @@ jobs:
       - run: npm ci
       - run: npm run build:css
       - run: npm run check
-      - run: pytest -q
+      - run: python -m pytest -q

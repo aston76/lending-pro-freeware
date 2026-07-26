@@ -7,7 +7,7 @@
   "scripts": {
     "build:css": "tailwindcss -c tailwind.config.js -i ./web/tailwind-input.css -o ./web/vendor/tailwind.css --minify",
     "check": "python3 scripts/check_project.py",
-    "test": "pytest -q"
+    "test": "python3 -m pytest -q"
   },
   "repository": {
     "type": "git",
