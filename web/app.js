@@ -176,23 +176,18 @@ const SoundEngine = {
 // this offline app, so users explicitly confirm when they no longer want them.
 const DonationSupport = {
     url: 'https://ko-fi.com/astonswissapp',
-    lastPromptKey: 'lending-donation-last-prompt',
-    supportedKey: 'lending-donation-supported',
+    installationId: '',
 
-    today() {
-        const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    async init() {
+        this.installationId = await App.api('get_installation_id');
     },
 
     maybePrompt() {
-        if (localStorage.getItem(this.supportedKey) === 'true') return;
-        if (localStorage.getItem(this.lastPromptKey) === this.today()) return;
-        localStorage.setItem(this.lastPromptKey, this.today());
         this.show();
     },
 
     show() {
-        UI.showModal('Soutenir Lending Pro Freeware', `
+        UI.showModal(I18n.t('title'), `
             <div class="text-center space-y-4 py-2">
                 <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
                      style="background:rgba(255,149,0,0.12); color:#B86700;">
@@ -200,21 +195,32 @@ const DonationSupport = {
                 </div>
                 <div class="space-y-2">
                     <p class="text-sm font-semibold" style="color:var(--text-primary)">
-                        Si vous appréciez mon logiciel, vous pouvez m'offrir un café.
+                        ${I18n.t('message')}
                     </p>
                     <p class="text-sm" style="color:var(--text-secondary)">
-                        Don minimum conseillé : 5 €.
+                        ${I18n.t('minimum')}
+                    </p>
+                </div>
+                <div class="p-3 rounded-lg text-left" style="background:var(--surface-2); border:1px solid var(--surface-3);">
+                    <p class="text-[11px] font-semibold mb-1" style="color:var(--text-tertiary)">${I18n.t('installation')}</p>
+                    <div class="flex items-center justify-between gap-2">
+                        <code class="text-xs break-all" style="color:var(--text-primary)">${this.installationId}</code>
+                        <button onclick="DonationSupport.copyInstallationId()" class="btn btn-icon btn-ghost flex-shrink-0" title="${I18n.x('copy')}">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] mt-2" style="color:var(--text-tertiary)">
+                        ${I18n.x('instruction')}
                     </p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center pt-1">
-                    <button onclick="UI.closeModal()" class="btn btn-ghost">Plus tard</button>
-                    <button onclick="DonationSupport.markSupported()" class="btn btn-ghost">J'ai déjà soutenu</button>
+                    <button onclick="UI.closeModal()" class="btn btn-ghost">${I18n.t('later')}</button>
                     <button onclick="DonationSupport.open()" class="btn btn-primary">
-                        <i data-lucide="coffee" class="w-4 h-4"></i> Offrir un café
+                        <i data-lucide="coffee" class="w-4 h-4"></i> ${I18n.t('coffee')}
                     </button>
                 </div>
                 <p class="text-[11px]" style="color:var(--text-tertiary)">
-                    La confirmation « J'ai déjà soutenu » désactive les rappels sur cet appareil.
+                    ${I18n.x('reminder')}
                 </p>
             </div>
         `, { width: 'max-w-md' });
@@ -229,10 +235,13 @@ const DonationSupport = {
         UI.closeModal();
     },
 
-    markSupported() {
-        localStorage.setItem(this.supportedKey, 'true');
-        UI.closeModal();
-        UI.toast('Merci pour votre soutien. Les rappels sont désactivés.', 'success');
+    async copyInstallationId() {
+        try {
+            await navigator.clipboard.writeText(this.installationId);
+            UI.toast('Identifiant copié.', 'success');
+        } catch (error) {
+            UI.toast('Impossible de copier l’identifiant.', 'error');
+        }
     }
 };
 
@@ -246,6 +255,8 @@ const App = {
     calcExpression: '',
     calcLastResult: false,
     appName: 'Lending Pro Freeware',
+    currencyCode: 'PHP',
+    language: 'en',
     isDemoOnly: false,
     isDemoEdition: false,
 
@@ -271,7 +282,7 @@ const App = {
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
-        if (versionLabel) versionLabel.textContent = `v1.2.0 - ${this.appName}`;
+        if (versionLabel) versionLabel.textContent = `v1.3.0 - ${this.appName}`;
         this.updateDemoControl();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();
@@ -280,6 +291,9 @@ const App = {
         // Load company name
         try {
             const settings = await pywebview.api.get_settings();
+            this.currencyCode = settings.currency || 'PHP';
+            this.language = settings.language || navigator.language || 'en';
+            I18n.setLanguage(this.language);
             if (settings.company_name) {
                 const el = document.getElementById('sidebar-company-name');
                 if (el) el.textContent = settings.company_name;
@@ -288,6 +302,7 @@ const App = {
 
         await this.navigate('dashboard');
         lucide.createIcons();
+        await DonationSupport.init();
         DonationSupport.maybePrompt();
 
         // Load and refresh overdue alerts badge
@@ -383,6 +398,7 @@ const App = {
             this.updateDemoControl();
 
             const settings = await this.api('get_settings');
+            this.currencyCode = settings.currency || 'PHP';
             const nameEl = document.getElementById('sidebar-company-name');
             if (nameEl) nameEl.textContent = settings.company_name || this.appName;
             await this.refreshAlertsBadge();

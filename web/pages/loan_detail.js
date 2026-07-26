@@ -198,7 +198,7 @@ const LoanDetailPage = {
         UI.showModal('Record Payment', `
             <form onsubmit="LoanDetailPage.submitPayment(event)" class="space-y-4">
                 <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
+                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (${UI.currencyCode()}) *</label>
                     <input name="amount" type="number" class="input" required min="0.01" max="${outstanding}" step="0.01"
                            value="${suggested || ''}" placeholder="Enter amount">
                     <p class="text-xs mt-1" style="color:var(--text-tertiary)">Outstanding balance: ${UI.formatCurrency(outstanding)}</p>

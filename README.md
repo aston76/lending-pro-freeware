@@ -14,8 +14,33 @@ All operational data is stored locally on the user's computer. The repository an
 - Optional temporary demo mode with fictitious records
 - Light and dark themes
 - Clean shutdown with automatic local backup
+- 22 selectable currencies for international use
+- Worldwide address search and international phone numbers
+- Donation dialog localized in 17 languages, selected in Settings
+
+## Screenshots
+
+![Empty dashboard](docs/screenshots/dashboard-empty.png)
+
+![Dashboard with fictitious demo data](docs/screenshots/dashboard-demo.png)
+
+![Donation dialog](docs/screenshots/donation-dialog.png)
 
 ## Install on macOS
+
+Install the latest Apple Silicon release for the current user with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aston76/lending-pro-freeware/main/install.sh | bash
+```
+
+The installer downloads the latest DMG, validates its published SHA-256 checksum, verifies the app signature, and installs it in `~/Applications`. An existing version is preserved as a timestamped backup.
+
+To choose another destination:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aston76/lending-pro-freeware/main/install.sh | LENDING_PRO_INSTALL_DIR=/Applications bash
+```
 
 Download the latest Apple Silicon DMG from [Releases](https://github.com/aston76/lending-pro-freeware/releases), open it, and drag **Lending Pro Freeware** into **Applications**.
 
@@ -58,7 +83,7 @@ See [SECURITY.md](SECURITY.md) for responsible vulnerability reporting.
 
 Lending Pro Freeware remains free to use. You can support its maintenance with a donation of **€5 or more** through [Ko-fi](https://ko-fi.com/astonswissapp).
 
-The dashboard always keeps a **Don** button available. The optional reminder appears at most once per day until it is manually disabled on that device.
+The dashboard always keeps a **Don** button available. Every installation receives an anonymous local ID that can be included in the Ko-fi message. There is no manual bypass: the reminder returns at launch until a payment associated with that ID can be verified by the creator's Ko-fi webhook service.
 
 ## Contributing
 

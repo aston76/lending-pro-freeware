@@ -12,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_FILES = [
     "app_config.py",
+    "installation_id.py",
+    "currency_utils.py",
     "api.py",
     "backup.py",
     "database.py",
@@ -26,6 +28,7 @@ PYTHON_FILES = [
 ]
 JS_FILES = [
     "web/app.js",
+    "web/i18n.js",
     "web/components.js",
     "web/print_manager.js",
     "web/pages/alerts.js",

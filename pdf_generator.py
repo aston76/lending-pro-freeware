@@ -19,6 +19,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 from app_config import APP_NAME
 from database import get_connection, dict_from_row, rows_to_list, APP_SUPPORT_DIR
+from currency_utils import format_money, normalize_currency
 
 
 def _get_styles():
@@ -73,14 +74,15 @@ def _get_company_info():
     """Get company info from settings."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT key, value FROM settings WHERE key IN ('company_name', 'company_address', 'company_contact')")
+    cursor.execute("SELECT key, value FROM settings WHERE key IN ('company_name', 'company_address', 'company_contact', 'currency')")
     rows = cursor.fetchall()
     conn.close()
     info = {r['key']: r['value'] for r in rows}
     return {
         'name': info.get('company_name', APP_NAME),
         'address': info.get('company_address', ''),
-        'contact': info.get('company_contact', '')
+        'contact': info.get('company_contact', ''),
+        'currency': normalize_currency(info.get('currency', 'PHP')),
     }
 
 
@@ -185,10 +187,10 @@ def generate_contract_pdf(loan_id, output_path=None):
     monthly_rate = term_rate / max(original_term, 1)
     total_repayment = float(loan['principal']) + float(loan['total_interest'])
     loan_data = [
-        ["Principal Amount:", f"₱ {loan['principal']:,.2f}", "Monthly Rate:", f"{monthly_rate:.2f}%"],
+        ["Principal Amount:", format_money(loan['principal'], company['currency']), "Monthly Rate:", f"{monthly_rate:.2f}%"],
         ["Interest Type:", interest_label, "Term Rate:", f"{term_rate:.2f}%"],
-        ["Term:", f"{loan['term_months']} months", "Monthly Payment:", f"₱ {loan['monthly_payment']:,.2f}"],
-        ["Total Interest:", f"₱ {loan['total_interest']:,.2f}", "Total Repayment:", f"₱ {total_repayment:,.2f}"],
+        ["Term:", f"{loan['term_months']} months", "Monthly Payment:", format_money(loan['monthly_payment'], company['currency'])],
+        ["Total Interest:", format_money(loan['total_interest'], company['currency']), "Total Repayment:", format_money(total_repayment, company['currency'])],
         ["Start Date:", loan['start_date'], "Status:", loan['status'].upper()],
     ]
     loan_table = Table(loan_data, colWidths=[100, 130, 100, 130])
@@ -213,10 +215,10 @@ def generate_contract_pdf(loan_id, output_path=None):
         amort_data.append([
             str(entry['month_number']),
             entry['due_date'],
-            f"₱ {entry['principal_portion']:,.2f}",
-            f"₱ {entry['interest_portion']:,.2f}",
-            f"₱ {entry['total_due']:,.2f}",
-            f"₱ {entry['balance_remaining']:,.2f}"
+            format_money(entry['principal_portion'], company['currency']),
+            format_money(entry['interest_portion'], company['currency']),
+            format_money(entry['total_due'], company['currency']),
+            format_money(entry['balance_remaining'], company['currency'])
         ])
 
     amort_table = Table(amort_data, colWidths=[25, 75, 80, 70, 80, 80])
@@ -367,10 +369,10 @@ def generate_receipt_pdf(payment_id, output_path=None):
     # Payment summary
     elements.append(Paragraph("PAYMENT SUMMARY", styles['SectionHeader']))
     summary_data = [
-        ["Amount Paid:", f"₱ {payment['amount']:,.2f}"],
-        ["Total Loan Amount:", f"₱ {total_due:,.2f}"],
-        ["Total Paid to Date:", f"₱ {total_paid:,.2f}"],
-        ["Remaining Balance:", f"₱ {remaining:,.2f}"],
+        ["Amount Paid:", format_money(payment['amount'], company['currency'])],
+        ["Total Loan Amount:", format_money(total_due, company['currency'])],
+        ["Total Paid to Date:", format_money(total_paid, company['currency'])],
+        ["Remaining Balance:", format_money(remaining, company['currency'])],
     ]
     summary_table = Table(summary_data, colWidths=[180, 180])
     summary_table.setStyle(TableStyle([
@@ -497,7 +499,7 @@ def generate_amortization_pdf(loan_id, output_path=None):
         ],
         [
             Paragraph("<b>Principal:</b>", styles['FieldLabel']),
-            Paragraph(f"<b>₱ {loan['principal']:,.2f}</b>", styles['FieldValue']),
+            Paragraph(f"<b>{format_money(loan['principal'], company['currency'])}</b>", styles['FieldValue']),
             Paragraph("<b>Interest Type:</b>", styles['FieldLabel']),
             Paragraph(f"<b>{interest_label}</b>", styles['FieldValue']),
         ],
@@ -509,13 +511,13 @@ def generate_amortization_pdf(loan_id, output_path=None):
         ],
         [
             Paragraph("<b>Total Due:</b>", styles['FieldLabel']),
-            Paragraph(f"<b>₱ {total_due_loan:,.2f}</b>", styles['FieldValue']),
+            Paragraph(f"<b>{format_money(total_due_loan, company['currency'])}</b>", styles['FieldValue']),
             Paragraph("<b>Total Paid:</b>", styles['FieldLabel']),
-            Paragraph(f"<b>₱ {total_paid:,.2f} ({pct_paid:.1f}%)</b>", styles['FieldValue']),
+            Paragraph(f"<b>{format_money(total_paid, company['currency'])} ({pct_paid:.1f}%)</b>", styles['FieldValue']),
         ],
         [
             Paragraph("<b>Remaining:</b>", styles['FieldLabel']),
-            Paragraph(f"<b>₱ {remaining_loan:,.2f}</b>", styles['FieldValue']),
+            Paragraph(f"<b>{format_money(remaining_loan, company['currency'])}</b>", styles['FieldValue']),
             Paragraph("<b>Term:</b>", styles['FieldLabel']),
             Paragraph(f"<b>{loan['term_months']} months — Start: {loan['start_date']}</b>", styles['FieldValue']),
         ],
@@ -581,10 +583,10 @@ def generate_amortization_pdf(loan_id, output_path=None):
         amort_data.append([
             str(entry['month_number']),
             entry['due_date'],
-            f"₱ {entry['principal_portion']:,.2f}",
-            f"₱ {entry['interest_portion']:,.2f}",
-            f"₱ {entry['total_due']:,.2f}",
-            f"₱ {entry['balance_remaining']:,.2f}",
+            format_money(entry['principal_portion'], company['currency']),
+            format_money(entry['interest_portion'], company['currency']),
+            format_money(entry['total_due'], company['currency']),
+            format_money(entry['balance_remaining'], company['currency']),
             Paragraph(f"<b>{status_text}</b>", ParagraphStyle(
                 f's_{entry["month_number"]}',
                 parent=styles['SmallText'],

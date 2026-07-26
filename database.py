@@ -426,6 +426,7 @@ def init_database():
         "default_interest_rate": "5.0",
         "default_interest_type": "fixed",
         "currency": "PHP",
+        "language": "en",
         "dark_mode": "true",
         "company_name": APP_NAME,
         "company_phone": "",

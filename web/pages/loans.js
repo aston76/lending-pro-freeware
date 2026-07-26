@@ -224,7 +224,7 @@ const LoansPage = {
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Principal (₱) *</label>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Principal (${UI.currencyCode()}) *</label>
                         <input name="principal" type="number" class="input" required min="0.01" step="0.01" inputmode="decimal" placeholder="10000"
                                oninput="LoansPage.previewLoan()">
                     </div>

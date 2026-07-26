@@ -10,6 +10,8 @@ from pathlib import Path
 
 PROJECT_MODULES = [
     "app_config",
+    "installation_id",
+    "currency_utils",
     "api",
     "backup",
     "database",
@@ -43,6 +45,29 @@ def fresh_modules(tmp_path, monkeypatch):
 def fresh_api(tmp_path, monkeypatch):
     api, database, backup = fresh_modules(tmp_path, monkeypatch)
     return api.Api(), api, database, backup
+
+
+def test_installation_id_is_stable_and_anonymous(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    first_id = api_obj.get_installation_id()
+    second_id = api_obj.get_installation_id()
+
+    assert first_id == second_id
+    assert re.fullmatch(
+        r"LPF-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}",
+        first_id,
+    )
+    assert "@" not in first_id
+
+
+def test_currency_setting_is_validated_and_persisted(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+
+    assert api_obj.save_settings({"currency": "eur"}) is True
+    assert api_obj.get_settings()["currency"] == "EUR"
+
+    assert api_obj.save_settings({"currency": "not-a-currency"}) is True
+    assert api_obj.get_settings()["currency"] == "PHP"
 
 
 def make_client(api_obj, first_name="Ana", last_name="Diaz"):

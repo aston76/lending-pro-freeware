@@ -31,8 +31,8 @@ const DashboardPage = {
                         <i data-lucide="coffee" class="w-5 h-5"></i>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm font-semibold" style="color:var(--text-primary)">Soutenir le logiciel</p>
-                        <p class="text-xs" style="color:var(--text-tertiary)">Aidez à maintenir Lending Pro Freeware disponible gratuitement.</p>
+                        <p class="text-sm font-semibold" style="color:var(--text-primary)">${I18n.x('support')}</p>
+                        <p class="text-xs" style="color:var(--text-tertiary)">${I18n.x('supportDescription')}</p>
                     </div>
                 </div>
                 <button onclick="DonationSupport.show()" class="btn btn-sm flex items-center gap-1.5"

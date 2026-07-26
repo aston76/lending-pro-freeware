@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 - 2026-07-26
+
+- Added a checksum-verified command-line installer for Apple Silicon macOS.
+- Added clean screenshots generated from an isolated empty/demo profile.
+- Added 22 selectable currencies shared by the interface, SMS, PDF, and Excel exports.
+- Removed the Philippines-only address search restriction and the fixed +63 company phone prefix.
+- Added a persistent anonymous installation ID for future Ko-fi webhook matching.
+- Removed the manual donation-reminder bypass; the reminder returns on every launch until verified.
+- Added an offline language selector with 17 localized donation-dialog languages.
+- Added official-build integrity rules for contributors and coding agents.
+
 ## 1.2.0 - 2026-07-26
 
 - Renamed the public application to Lending Pro Freeware.
