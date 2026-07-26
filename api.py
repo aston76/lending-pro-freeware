@@ -23,6 +23,8 @@ from dateutil.relativedelta import relativedelta
 
 import logger as app_logger  # persistent error logger
 from app_config import APP_NAME, DEMO_ONLY
+from installation_id import get_installation_id
+from currency_utils import normalize_currency
 
 from database import (
     get_connection, dict_from_row, rows_to_list,
@@ -373,6 +375,10 @@ class Api:
             "demo_edition": self._demo_only,
             "demo_active": self._is_demo,
         }
+
+    def get_installation_id(self):
+        """Return the anonymous ID used to associate future donation receipts."""
+        return get_installation_id()
 
     def open_file(self, file_path):
         """Open any existing file or directory natively."""
@@ -2132,6 +2138,8 @@ class Api:
         conn = get_connection()
         c = conn.cursor()
         for key, value in data.items():
+            if key == "currency":
+                value = normalize_currency(value)
             c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
                       (key, str(value)))
         conn.commit()
@@ -2169,7 +2177,7 @@ class Api:
     def get_app_info(self):
         """Get application info."""
         return {
-            "version": "1.1.0",
+            "version": "1.3.0",
             "name": APP_NAME,
             "demo_only": self._is_restricted_demo(),
             "demo_edition": self._demo_only,
@@ -2542,12 +2550,13 @@ end tell
             if not api_key:
                 return {"success": False, "error": "API key not configured. Please set it in Settings > SMS."}
 
-            # Format phone number
+            # Preserve the caller's international country code.
             clean_phone = ''.join(filter(lambda x: x.isdigit() or x == '+', phone_number))
-            if clean_phone.startswith('09'):
-                clean_phone = '+63' + clean_phone[1:]
-            elif clean_phone.startswith('9') and len(clean_phone) == 10:
-                clean_phone = '+63' + clean_phone
+            if not re.fullmatch(r"\+[1-9]\d{7,14}", clean_phone):
+                return {
+                    "success": False,
+                    "error": "Use an international phone number such as +41791234567.",
+                }
 
             import urllib.request
             import urllib.parse

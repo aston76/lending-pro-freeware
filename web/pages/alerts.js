@@ -265,7 +265,7 @@ const AlertsPage = {
         const fillTemplate = (tpl) => {
             return tpl
                 .replace(/{name}/g, `${alert.first_name} ${alert.last_name}`)
-                .replace(/{amount}/g, `₱${Number(alert.total_overdue_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`)
+                .replace(/{amount}/g, UI.formatCurrency(alert.total_overdue_amount))
                 .replace(/{date}/g, alert.earliest_due)
                 .replace(/{days}/g, alert.days_overdue)
                 .replace(/{company}/g, companyName)
@@ -401,7 +401,7 @@ const AlertsPage = {
 
         const filled = tpl.text
             .replace(/{name}/g, `${alert.first_name} ${alert.last_name}`)
-            .replace(/{amount}/g, `₱${Number(alert.total_overdue_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`)
+            .replace(/{amount}/g, UI.formatCurrency(alert.total_overdue_amount))
             .replace(/{date}/g, alert.earliest_due)
             .replace(/{days}/g, alert.days_overdue)
             .replace(/{company}/g, companyName)
@@ -607,7 +607,7 @@ const AlertsPage = {
         for (const a of withPhone) {
             const message = tpl.text
                 .replace(/{name}/g, `${a.first_name} ${a.last_name}`)
-                .replace(/{amount}/g, `₱${Number(a.total_overdue_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`)
+                .replace(/{amount}/g, UI.formatCurrency(a.total_overdue_amount))
                 .replace(/{date}/g, a.earliest_due)
                 .replace(/{days}/g, a.days_overdue)
                 .replace(/{company}/g, companyName)

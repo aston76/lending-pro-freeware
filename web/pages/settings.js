@@ -172,23 +172,31 @@ const SettingsPage = {
                             </div>
                             <div>
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Phone Number</label>
-                                <div class="flex rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400 transition">
-                                    <span class="flex items-center px-3 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 font-semibold text-sm border-r border-gray-200 dark:border-slate-600 select-none flex-shrink-0">
-                                        🇵🇭 +63
-                                    </span>
-                                    <input name="company_phone"
-                                           type="tel"
-                                           inputmode="numeric"
-                                           class="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white text-sm outline-none placeholder-gray-400"
-                                           placeholder="912 345 6789"
-                                           value="${(settings.company_phone || '').replace(/^\+63\s?/, '')}">
-                                </div>
+                                <input name="company_phone" type="tel" class="input" placeholder="+41 79 123 45 67" value="${settings.company_phone || ''}">
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Email / Contact</label>
                                 <input name="company_contact" class="input" placeholder="info@lending.com" value="${settings.company_contact || ''}">
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Currency</label>
+                                <select name="currency" class="input select">
+                                    ${['PHP','EUR','USD','CHF','GBP','CAD','AUD','NZD','JPY','SGD','HKD','AED','SAR','INR','THB','MYR','IDR','VND','KRW','ZAR','MXN','BRL'].map(code =>
+                                        `<option value="${code}" ${(settings.currency || 'PHP') === code ? 'selected' : ''}>${code}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Language</label>
+                                <select name="language" class="input select">
+                                    ${[['en','English'],['fr','Français'],['es','Español'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['nl','Nederlands'],['fil','Filipino'],['zh','中文'],['ja','日本語'],['ko','한국어'],['ar','العربية'],['hi','हिन्दी'],['th','ไทย'],['ms','Bahasa Melayu'],['id','Bahasa Indonesia'],['vi','Tiếng Việt']].map(([code, label]) =>
+                                        `<option value="${code}" ${(settings.language || 'en') === code ? 'selected' : ''}>${label}</option>`
+                                    ).join('')}
+                                </select>
                             </div>
                             <div>
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Address</label>
@@ -222,7 +230,7 @@ const SettingsPage = {
                                 <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Commission Type</label>
                                 <select name="commission_type" class="input select" onchange="SettingsPage.toggleCommissionField(this.value)">
                                     <option value="percentage" ${(settings.commission_type || 'percentage') === 'percentage' ? 'selected' : ''}>% of Principal</option>
-                                    <option value="fixed_amount" ${settings.commission_type === 'fixed_amount' ? 'selected' : ''}>Fixed Amount (₱)</option>
+                                    <option value="fixed_amount" ${settings.commission_type === 'fixed_amount' ? 'selected' : ''}>Fixed Amount (${UI.currencyCode()})</option>
                                 </select>
                             </div>
                         </div>
@@ -233,7 +241,7 @@ const SettingsPage = {
                                        value="${settings.commission_rate || '2.0'}">
                             </div>
                             <div id="commission-amount-field" class="${settings.commission_type !== 'fixed_amount' ? 'hidden' : ''}">
-                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Commission Amount (₱)</label>
+                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Commission Amount (${UI.currencyCode()})</label>
                                 <input name="commission_amount" type="number" class="input" step="0.01" min="0" inputmode="decimal"
                                        value="${settings.commission_amount || '500'}">
                             </div>
@@ -247,7 +255,7 @@ const SettingsPage = {
                                         <i data-lucide="gift" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <div>
-                                        <p class="text-sm font-semibold text-gray-800 dark:text-white">Referral Bonus (₱)</p>
+                                        <p class="text-sm font-semibold text-gray-800 dark:text-white">Referral Bonus (${UI.currencyCode()})</p>
                                         <p class="text-xs text-gray-400 dark:text-slate-500">Bonus given to a client who refers a new borrower</p>
                                     </div>
                                 </div>
@@ -261,10 +269,10 @@ const SettingsPage = {
                             <div id="referral-bonus-fields" class="${settings.referral_bonus_enabled === 'true' ? '' : 'hidden'} space-y-3">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Bonus Amount (₱)</label>
+                                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Bonus Amount (${UI.currencyCode()})</label>
                                         <div class="flex rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-amber-400/40 transition">
                                             <span class="flex items-center px-3 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 font-semibold text-sm border-r border-gray-200 dark:border-slate-600 flex-shrink-0">
-                                                ₱
+                                                ${UI.currencyCode()}
                                             </span>
                                             <input name="referral_bonus_amount" type="number" class="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white text-sm outline-none" 
                                                    step="0.01" min="0" inputmode="decimal" placeholder="500"
@@ -623,8 +631,13 @@ const SettingsPage = {
             await App.api('save_settings', {
                 company_name: form.company_name.value,
                 company_contact: form.company_contact.value,
-                company_address: form.company_address.value
+                company_address: form.company_address.value,
+                currency: form.currency.value,
+                language: form.language.value
             });
+            App.currencyCode = form.currency.value;
+            App.language = form.language.value;
+            I18n.setLanguage(App.language);
             const nameEl = document.getElementById('sidebar-company-name');
             if (nameEl) nameEl.textContent = form.company_name.value || App.appName;
         });
@@ -723,13 +736,17 @@ const SettingsPage = {
     async saveCompany(e) {
         e.preventDefault();
         const form = e.target;
-        const rawPhone = form.company_phone.value.trim().replace(/^\+63\s?/, '');
         await App.api('save_settings', {
             company_name: form.company_name.value,
-            company_phone: rawPhone ? '+63 ' + rawPhone : '',
+            company_phone: form.company_phone.value.trim(),
             company_contact: form.company_contact.value,
-            company_address: form.company_address.value
+            company_address: form.company_address.value,
+            currency: form.currency.value,
+            language: form.language.value
         });
+        App.currencyCode = form.currency.value;
+        App.language = form.language.value;
+        I18n.setLanguage(App.language);
         // Update sidebar company name immediately
         const nameEl = document.getElementById('sidebar-company-name');
         if (nameEl) nameEl.textContent = form.company_name.value || App.appName;

@@ -481,18 +481,10 @@ const ClientDetailPage = {
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Phone</label>
-                        <div class="flex rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400 transition">
-                            <span class="flex items-center px-3 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 font-semibold text-sm border-r border-gray-200 dark:border-slate-600 select-none flex-shrink-0">
-                                🇵🇭 +63
-                            </span>
-                            <input name="contact" type="tel" inputmode="numeric"
-                                   class="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white text-sm outline-none placeholder-gray-400"
-                                   placeholder="912 345 6789"
-                                   id="edit-contact">
-                        </div>
+                        <input name="contact" type="tel" class="input" placeholder="+41 79 123 45 67" id="edit-contact">
                     </div>
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (${UI.currencyCode()})</label>
                         <input name="monthly_income" type="number" step="0.01" min="0" inputmode="decimal" class="input" placeholder="0" id="edit-income">
                     </div>
                 </div>
@@ -533,7 +525,7 @@ const ClientDetailPage = {
             document.getElementById('edit-last-name').value = c.last_name || '';
             document.getElementById('cdetail-address-input').value = c.address || '';
             document.getElementById('edit-address-detail').value = c.address_detail || '';
-            document.getElementById('edit-contact').value = (c.contact || '').replace(/^\+63\s?/, '');
+            document.getElementById('edit-contact').value = c.contact || '';
             document.getElementById('edit-income').value = c.monthly_income || '';
             document.getElementById('edit-email').value = c.email || '';
             document.getElementById('edit-notes').value = c.notes || '';
@@ -549,8 +541,6 @@ const ClientDetailPage = {
     async saveEdit(e) {
         e.preventDefault();
         const form = e.target;
-        const rawContact = form.contact.value.trim().replace(/^\+63\s?/, '');
-
         // Collect social media entries
         const socialMedia = [];
         document.querySelectorAll('.social-row').forEach(row => {
@@ -564,7 +554,7 @@ const ClientDetailPage = {
             last_name: form.last_name.value,
             address: form.address.value,
             address_detail: form.address_detail?.value || '',
-            contact: rawContact ? '+63 ' + rawContact : '',
+            contact: form.contact.value.trim(),
             email: form.email ? form.email.value : '',
             monthly_income: parseFloat(form.monthly_income.value) || 0,
             notes: form.notes.value,
@@ -589,7 +579,7 @@ const ClientDetailPage = {
                     </p>
                 </div>
                 <div>
-                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
+                    <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (${UI.currencyCode()}) *</label>
                     <input name="amount" type="number" class="input" required min="0.01" max="${outstanding}" step="0.01"
                            value="${suggestedAmount}" placeholder="Enter amount">
                     <p class="text-xs mt-1" style="color:var(--text-tertiary)">Outstanding balance: ${UI.formatCurrency(outstanding)}</p>
@@ -699,7 +689,7 @@ const ClientDetailPage = {
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
+                            <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (${UI.currencyCode()}) *</label>
                             <input name="amount" type="number" step="0.01" min="0.01" inputmode="decimal" class="input" required placeholder="500.00">
                         </div>
                         <div>
@@ -764,9 +754,9 @@ const ClientDetailPage = {
 
         // Validation basique du format
         const cleaned = phone.replace(/\s/g, '').replace(/-/g, '');
-        const validPattern = /^(\+63|0063|09|9)\d{9,10}$|^\+\d{7,15}$/;
+        const validPattern = /^\+[1-9]\d{7,14}$/;
         if (!validPattern.test(cleaned)) {
-            UI.toast('Format du numéro invalide. Vérifiez le profil du client.', 'warning');
+            UI.toast('Use an international number such as +41791234567.', 'warning');
             return;
         }
 
@@ -890,7 +880,7 @@ const ClientDetailPage = {
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">
-                                New Total Credit (₱) *
+                                New Total Credit (${UI.currencyCode()}) *
                                 <span class="text-[10px] text-gray-400 font-normal block">Full amount of the new loan</span>
                             </label>
                             <input name="principal" type="number" class="input" required min="${info.remaining}" step="0.01"

@@ -105,11 +105,11 @@ const HelpPage = {
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Create a New Loan</h5>
                         <p>Via <strong>Loans → New Loan</strong> or from the client profile → New Loan. Parameters:</p>
                         <ul class="mt-2 space-y-2 ml-4">
-                            <li>• <strong>Principal (₱)</strong> — borrowed amount (capital)</li>
+                            <li>• <strong>Principal (${UI.currencyCode()})</strong> — borrowed amount (capital)</li>
                             <li>• <strong>Interest Rate (%)</strong> — choose whether the entered rate is monthly or for the full term; the contract stores the full-term rate</li>
                             <li>• <strong>Interest Type</strong>:
                                 <ul class="ml-4 mt-1 space-y-1">
-                                    <li>→ <strong>Fixed Rate</strong>: interest calculated once on the total capital. Equal installments. <em>Ex: ₱10,000 at 3%/month × 6 months = ₱1,800 interest → ₱1,966.67/month</em></li>
+                                    <li>→ <strong>Fixed Rate</strong>: interest calculated once on the total capital. Equal installments. <em>Ex: ${UI.formatCurrency(10000)} at 3%/month × 6 months = ${UI.formatCurrency(1800)} interest → ${UI.formatCurrency(1966.67)}/month</em></li>
                                     <li>→ <strong>Declining Balance</strong>: interest recalculated each month on the remaining capital. Decreasing installments.</li>
                                 </ul>
                             </li>
@@ -160,7 +160,7 @@ const HelpPage = {
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Record a Payment</h5>
                         <p>In the Loan Detail view (Active status), click the green <strong>"Record"</strong> button:</p>
                         <ul class="mt-2 space-y-1 ml-4">
-                            <li>• <strong>Amount (₱)</strong> — amount received (not necessarily equal to the monthly installment)</li>
+                            <li>• <strong>Amount (${UI.currencyCode()})</strong> — amount received (not necessarily equal to the monthly installment)</li>
                             <li>• <strong>Payment Date</strong> — actual payment date (today by default)</li>
                             <li>• <strong>Method</strong> — Cash / GCash / Bank Transfer / Check</li>
                             <li>• <strong>Notes</strong> — reference, transaction number, etc.</li>
@@ -225,7 +225,7 @@ const HelpPage = {
                                 <span class="text-gray-500 dark:text-slate-400">
                                     • The old loan switches to <em>Refinanced</em> status<br>
                                     • A new loan is created with principal: <code>New Capital + Remaining Balance</code><br>
-                                    • The new loan shows "↩ Includes ₱X rollover from Loan #Y"
+                                    • The new loan shows the rollover amount from the previous loan
                                 </span>
                             </li>
                         </ol>
@@ -233,11 +233,11 @@ const HelpPage = {
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Concrete Example</h5>
                         <div class="bg-gray-50 dark:bg-slate-800/50 rounded-xl p-4 font-mono text-xs space-y-1">
-                            <p>Loan A: Principal ₱10,000 | Total due ₱11,800</p>
-                            <p>Already paid: ₱5,000</p>
-                            <p class="text-amber-600">Remaining balance: ₱6,800</p>
-                            <p class="mt-2">New capital requested: ₱8,000</p>
-                            <p class="text-green-600 font-bold">New loan principal: ₱8,000 + ₱6,800 = ₱14,800</p>
+                            <p>Loan A: Principal ${UI.formatCurrency(10000)} | Total due ${UI.formatCurrency(11800)}</p>
+                            <p>Already paid: ${UI.formatCurrency(5000)}</p>
+                            <p class="text-amber-600">Remaining balance: ${UI.formatCurrency(6800)}</p>
+                            <p class="mt-2">New capital requested: ${UI.formatCurrency(8000)}</p>
+                            <p class="text-green-600 font-bold">New loan principal: ${UI.formatCurrency(8000)} + ${UI.formatCurrency(6800)} = ${UI.formatCurrency(14800)}</p>
                         </div>
                     </div>
                     <div class="help-tip">
@@ -257,7 +257,7 @@ const HelpPage = {
                         <p>In the client profile → "Penalties" section → <strong>"+ Add Penalty"</strong> button (visible if a loan is active):</p>
                         <ul class="mt-2 space-y-1 ml-4">
                             <li>• <strong>Loan</strong> — select the relevant loan</li>
-                            <li>• <strong>Amount</strong> — penalty amount in ₱</li>
+                            <li>• <strong>Amount</strong> — penalty amount in the selected currency</li>
                             <li>• <strong>Date</strong> — penalty date</li>
                             <li>• <strong>Reason</strong> — Late Payment / Missed Payment / Early Termination / Other</li>
                             <li>• <strong>Notes</strong> — additional details</li>
@@ -320,7 +320,7 @@ const HelpPage = {
                         <p>In Settings → Loan Defaults & Commission:</p>
                         <ul class="mt-2 space-y-1 ml-4">
                             <li>• <strong>% of Principal</strong> — commission calculated as a percentage of the new loan capital</li>
-                            <li>• <strong>Fixed Amount ₱</strong> — fixed amount per referral</li>
+                            <li>• <strong>Fixed Amount</strong> — fixed amount per referral in the selected currency</li>
                         </ul>
                     </div>
                     <div>

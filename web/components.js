@@ -379,8 +379,21 @@ const UI = {
     // FORMAT HELPERS
     // ═══════════════════════════════════════════════════════════
     formatCurrency(amount) {
-        if (amount == null || isNaN(amount)) return '₱ 0.00';
-        return '₱ ' + Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const value = amount == null || isNaN(amount) ? 0 : Number(amount);
+        const currency = App.currencyCode || 'PHP';
+        try {
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency,
+                currencyDisplay: 'narrowSymbol'
+            }).format(value);
+        } catch (error) {
+            return `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+    },
+
+    currencyCode() {
+        return App.currencyCode || 'PHP';
     },
 
     formatDate(dateStr) {

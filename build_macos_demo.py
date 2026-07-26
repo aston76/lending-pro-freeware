@@ -132,8 +132,8 @@ def build_app():
     info.update({
         "CFBundleDisplayName": APP_NAME,
         "CFBundleName": APP_NAME,
-        "CFBundleShortVersionString": "1.2.0",
-        "CFBundleVersion": "4",
+        "CFBundleShortVersionString": "1.3.0",
+        "CFBundleVersion": "5",
         "LSMinimumSystemVersion": "12.0",
         "NSCameraUsageDescription": "Lending Pro Freeware uses the camera to capture client photos.",
         "NSPhotoLibraryUsageDescription": "Lending Pro Freeware imports files selected by the user.",

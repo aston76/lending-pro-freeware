@@ -143,14 +143,7 @@ const ClientsPage = {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Contact Number</label>
-                        <div class="flex rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400 transition">
-                            <span class="flex items-center px-3 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 font-semibold text-sm border-r border-gray-200 dark:border-slate-600 select-none flex-shrink-0">
-                                🇵🇭 +63
-                            </span>
-                            <input name="contact" type="tel" inputmode="numeric"
-                                   class="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white text-sm outline-none placeholder-gray-400"
-                                   placeholder="912 345 6789">
-                        </div>
+                        <input name="contact" type="tel" class="input" placeholder="+41 79 123 45 67">
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Rating</label>
@@ -169,7 +162,7 @@ const ClientsPage = {
                         <input name="email" type="email" class="input" placeholder="juan@example.com">
                     </div>
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (${UI.currencyCode()})</label>
                         <input name="monthly_income" type="number" class="input" min="0" step="0.01" inputmode="decimal" placeholder="0">
                     </div>
                 </div>
@@ -197,13 +190,12 @@ const ClientsPage = {
     async submitCreate(e) {
         e.preventDefault();
         const form = e.target;
-        const rawContact = form.contact.value.trim().replace(/^\+63\s?/, '');
         const data = {
             first_name: form.first_name.value,
             last_name: form.last_name.value,
             address: form.address.value,
             address_detail: form.address_detail?.value || '',
-            contact: rawContact ? '+63 ' + rawContact : '',
+            contact: form.contact.value.trim(),
             email: form.email.value || '',
             monthly_income: parseFloat(form.monthly_income.value) || 0,
             rating: parseInt(form.rating.value),
@@ -262,15 +254,7 @@ const ClientsPage = {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Contact Number</label>
-                        <div class="flex rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400 transition">
-                            <span class="flex items-center px-3 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 font-semibold text-sm border-r border-gray-200 dark:border-slate-600 select-none flex-shrink-0">
-                                🇵🇭 +63
-                            </span>
-                            <input name="contact" type="tel" inputmode="numeric"
-                                   class="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white text-sm outline-none placeholder-gray-400"
-                                   placeholder="912 345 6789"
-                                   value="${(client.contact || '').replace(/^\+63\s?/, '')}">
-                        </div>
+                        <input name="contact" type="tel" class="input" placeholder="+41 79 123 45 67" value="${client.contact || ''}">
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Rating</label>
@@ -285,7 +269,7 @@ const ClientsPage = {
                         <input name="email" type="email" class="input" placeholder="juan@example.com" value="${client.email || ''}">
                     </div>
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (₱)</label>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Monthly Income (${UI.currencyCode()})</label>
                         <input name="monthly_income" type="number" class="input" min="0" step="0.01" inputmode="decimal" value="${client.monthly_income || ''}" placeholder="0">
                     </div>
                 </div>
@@ -313,13 +297,12 @@ const ClientsPage = {
     async submitEdit(e, clientId) {
         e.preventDefault();
         const form = e.target;
-        const rawContact = form.contact.value.trim().replace(/^\+63\s?/, '');
         const data = {
             first_name: form.first_name.value,
             last_name: form.last_name.value,
             address: form.address.value,
             address_detail: form.address_detail?.value || '',
-            contact: rawContact ? '+63 ' + rawContact : '',
+            contact: form.contact.value.trim(),
             email: form.email.value || '',
             monthly_income: parseFloat(form.monthly_income.value) || 0,
             rating: parseInt(form.rating.value),
@@ -393,8 +376,7 @@ const ClientsPage = {
             results.classList.remove('hidden');
             try {
                 const url = `https://nominatim.openstreetmap.org/search?` +
-                    `q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=7` +
-                    `&countrycodes=ph&viewbox=123.65,10.4,124.2,9.8&bounded=0`;
+                    `q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=7`;
                 const resp = await fetch(url, {
                     headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' }
                 });
@@ -483,7 +465,7 @@ const ClientsPage = {
         } else {
             // Pas de coords : geocoder le texte saisi
             UI.toast('Localisation en cours…', 'info');
-            fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1&countrycodes=ph',
+            fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1',
                 { headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' } })
                 .then(function (r) { return r.json(); })
                 .then(function (results) {
@@ -506,7 +488,7 @@ const ClientsPage = {
     openMapForAddress(address) {
         if (!address) return;
         UI.toast('Locating on map…', 'info');
-        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=ph`,
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
             { headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' } })
             .then(r => r.json())
             .then(results => {

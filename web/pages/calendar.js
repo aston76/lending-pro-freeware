@@ -381,7 +381,7 @@ const CalendarPage = {
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (₱) *</label>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Amount (${UI.currencyCode()}) *</label>
                         <input name="amount" type="number" class="input" required step="0.01" value="${amount}">
                     </div>
                     <div>

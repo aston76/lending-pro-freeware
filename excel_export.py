@@ -11,6 +11,7 @@ from openpyxl.utils import get_column_letter
 
 from app_config import APP_NAME
 from database import get_connection, rows_to_list, APP_SUPPORT_DIR, BACKUP_DIR
+from currency_utils import currency_from_connection
 
 
 def _style_header(ws, headers, row=1):
@@ -59,6 +60,7 @@ def _add_data_rows(ws, data, start_row=2):
 def _add_summary_sheet(wb, conn, date_from=None, date_to=None):
     """Add a Summary sheet with aggregated KPIs."""
     ws = wb.create_sheet("Summary", 0)  # Insert at beginning
+    currency = currency_from_connection(conn)
     ws.column_dimensions['A'].width = 32
     ws.column_dimensions['B'].width = 22
 
@@ -131,19 +133,19 @@ def _add_summary_sheet(wb, conn, date_from=None, date_to=None):
     add_row('Active loans', n_active)
     add_row('Paid loans', n_paid)
     add_row('Defaulted loans', n_defaulted)
-    add_row('Total capital lent (₱)', round(total_capital, 2))
-    add_row('Total interest expected (₱)', round(total_interest_due, 2))
+    add_row(f'Total capital lent ({currency})', round(total_capital, 2))
+    add_row(f'Total interest expected ({currency})', round(total_interest_due, 2))
     row += 1
 
     add_section_header('💵 PAYMENTS')
     add_row('Total payment transactions', n_payments)
-    add_row('Total amount collected (₱)', round(total_collected, 2))
-    add_row('Outstanding (₱)', round(total_capital + total_interest_due - total_collected, 2))
+    add_row(f'Total amount collected ({currency})', round(total_collected, 2))
+    add_row(f'Outstanding ({currency})', round(total_capital + total_interest_due - total_collected, 2))
     row += 1
 
     add_section_header('🤝 COMMISSIONS')
     add_row('Total commissions', n_commissions)
-    add_row('Total commission amount (₱)', round(total_commissions, 2))
+    add_row(f'Total commission amount ({currency})', round(total_commissions, 2))
 
 
 def export_selective(output_path, sheets, date_from=None, date_to=None):
@@ -165,6 +167,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         sheets = ['clients', 'loans', 'payments', 'amortization', 'penalties', 'commissions']
 
     conn = get_connection()
+    currency = currency_from_connection(conn)
     c    = conn.cursor()
     wb   = Workbook()
 
@@ -205,10 +208,10 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     # ── Loans ─────────────────────────────────────────────────────
     if 'loans' in sheets:
         ws = wb.create_sheet('Loans')
-        headers = ["Loan ID", "Client ID", "Client Name", "Principal (₱)",
+        headers = ["Loan ID", "Client ID", "Client Name", f"Principal ({currency})",
                    "Monthly Rate %", "Term Rate %", "Type", "Term (mo)", "Start Date", "Status",
-                   "Total Interest (₱)", "Monthly Payment (₱)",
-                   "Total Paid (₱)", "Remaining (₱)", "Created"]
+                   f"Total Interest ({currency})", f"Monthly Payment ({currency})",
+                   f"Total Paid ({currency})", f"Remaining ({currency})", "Created"]
         _style_header(ws, headers)
         df = date_filter_clause('l.start_date')
         c.execute(f"""
@@ -236,7 +239,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     if 'payments' in sheets:
         ws = wb.create_sheet('Payments')
         headers = ["Payment ID", "Loan ID", "Client ID", "Client Name",
-                   "Amount (₱)", "Date", "Method", "Notes", "Created"]
+                   f"Amount ({currency})", "Date", "Method", "Notes", "Created"]
         _style_header(ws, headers)
         df = date_filter_clause('p.payment_date')
         c.execute(f"""
@@ -262,7 +265,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     if 'amortization' in sheets:
         ws = wb.create_sheet('Amortization Schedule')
         headers = ["Loan ID", "Client Name", "Month #", "Due Date",
-                   "Principal (₱)", "Interest (₱)", "Total Due (₱)", "Balance Remaining (₱)"]
+                   f"Principal ({currency})", f"Interest ({currency})", f"Total Due ({currency})", f"Balance Remaining ({currency})"]
         _style_header(ws, headers)
         df = date_filter_clause('a.due_date')
         c.execute(f"""
@@ -288,7 +291,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     if 'penalties' in sheets:
         ws = wb.create_sheet('Penalties')
         headers = ["ID", "Loan ID", "Client ID", "Client Name",
-                   "Amount (₱)", "Reason", "Status", "Penalty Date", "Notes"]
+                   f"Amount ({currency})", "Reason", "Status", "Penalty Date", "Notes"]
         _style_header(ws, headers)
         df = date_filter_clause('p.penalty_date')
         c.execute(f"""
@@ -312,7 +315,7 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     if 'commissions' in sheets:
         ws = wb.create_sheet('Commissions')
         headers = ["ID", "Referrer ID", "Referrer Name", "Referred ID",
-                   "Referred Name", "Loan ID", "Commission (₱)", "Status", "Created"]
+                   "Referred Name", "Loan ID", f"Commission ({currency})", "Status", "Created"]
         _style_header(ws, headers)
         df = date_filter_clause('rc.created_at')
         c.execute(f"""
