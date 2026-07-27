@@ -8,7 +8,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-000000">
   <img alt="Offline" src="https://img.shields.io/badge/offline--first-FF9F0A">
   <img alt="Currencies" src="https://img.shields.io/badge/currencies-22-0A84FF">
-  <img alt="Languages" src="https://img.shields.io/badge/UI%20languages-17-BF5AF2">
+  <img alt="Donation languages" src="https://img.shields.io/badge/donation%20languages-17-BF5AF2">
   <img alt="Tests" src="https://img.shields.io/badge/tests-passing-34C759">
 </p>
 
@@ -31,13 +31,23 @@ Lending Pro Freeware is the complete, no-nonsense tool for anyone who lends mone
 
 It pairs the polish and speed of a modern macOS app with cent-exact accounting and true privacy.
 
+## What's new in the 1.3 series
+
+| Version | Highlights |
+| --- | --- |
+| **1.3.2** | Light theme by default, dark theme preserved as an option, corrected theme toggle, and a complete light-mode screenshot gallery. |
+| **1.3.1** | Donation reminder limited to once every 7 days, then once every 90 days after local donation confirmation; simplified local-only donation logic. |
+| **1.3.0** | One-command checksum-verified macOS installer, 22 currencies, worldwide address search, international phone numbers, and localized donation prompts. |
+
+The GitHub project now also includes the official product banner, an animated application tour, six full-resolution workflow screenshots, detailed feature documentation, targeted repository topics, and a Ko-fi Sponsor link.
+
 ## Why Lending Pro Freeware
 
 - **100% offline and private.** No account, no login, no server, no analytics. Your client book lives on your Mac.
 - **Free forever, no catches.** No trial, no paywall, no locked features. A voluntary donation is the only ask.
 - **Built for the field.** Webcam capture, signatures, ID documents, SMS reminders and a collection calendar designed for daily rounds.
 - **Cent-exact money.** Every schedule is computed with Decimal math, reconciled to its totals, and never drifts on rounding.
-- **Truly international.** 22 currencies (USD, EUR, PHP, GBP, CHF, INR and more) and a 17-language interface.
+- **Truly international.** 22 currencies (USD, EUR, PHP, GBP, CHF, INR and more), worldwide addresses, international phone numbers, and donation prompts localized in 17 languages.
 - **Apple-grade UI.** A calm, dense, professional workspace in light or dark theme — no marketing fluff, built to work in.
 
 ## Feature tour
@@ -74,7 +84,7 @@ Captures are stored locally per client and appear in their document vault and on
 
 ### Built for any country
 
-Choose from **22 currencies** — USD, EUR, PHP, GBP, CAD, AUD, CHF, JPY, SGD, HKD, AED, SAR, INR, THB, MYR, IDR, VND, KRW, ZAR, MXN, BRL, NZD — with correct zero-decimal handling for JPY, KRW, VND and IDR. The selected currency flows consistently through the UI, SMS, PDF contracts, receipts and Excel exports. The interface is available in **17 languages**, and worldwide address search plus international phone numbers mean it works wherever you lend.
+Choose from **22 currencies** — USD, EUR, PHP, GBP, CAD, AUD, CHF, JPY, SGD, HKD, AED, SAR, INR, THB, MYR, IDR, VND, KRW, ZAR, MXN, BRL, NZD — with correct zero-decimal handling for JPY, KRW, VND and IDR. The selected currency flows consistently through the UI, SMS, PDF contracts, receipts and Excel exports. Donation prompts are available in **17 languages**, while worldwide address search and international phone numbers make the application usable across countries.
 
 ## Screenshots
 

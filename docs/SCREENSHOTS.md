@@ -2,9 +2,17 @@
 
 All screenshots were captured from an isolated application profile. The demo data is entirely fictitious and contains no personal information.
 
+## Official banner
+
+[![Official Lending Pro banner](screenshots/banner.png)](screenshots/banner.png)
+
+The official 1280 x 512 project banner presents Lending Pro as a private loan-management product with repayment tracking, reminders, dashboard analytics, and local data ownership.
+
 ## Animated tour
 
 ![Lending Pro Freeware animated tour](screenshots/demo.gif)
+
+The GitHub-compatible GIF cycles through the dashboard, loan list, payment history, and borrower profile.
 
 ## Dashboard
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased documentation - 2026-07-27
+
+- Added the official Lending Pro marketing banner supplied by the project owner.
+- Added a GitHub-compatible animated product tour covering the dashboard, loans, payments, and client profile.
+- Added full-resolution screenshots for collections, loans, payments, client details, and settings.
+- Reworked the README with product positioning, feature coverage, camera workflow, international support, installation, privacy, and audience sections.
+- Added a version-by-version summary of the complete 1.3 series.
+- Added GitHub badges, search-oriented repository topics, a richer repository description, and Ko-fi Sponsor metadata.
+- Added reproducible banner and GIF generation scripts for future documentation updates.
+
 ## 1.3.2 - 2026-07-26
 
 - Made the light interface the default for new installations.
