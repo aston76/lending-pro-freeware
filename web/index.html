@@ -18,6 +18,52 @@
 
 <body class="h-screen flex" style="background: var(--surface-1); color: var(--text-primary); overflow: clip;">
 
+    <!-- ═══ Optional startup login ═══ -->
+    <section id="auth-screen" class="auth-screen" aria-label="Profile login" aria-live="polite">
+        <div class="auth-orb auth-orb-one"></div>
+        <div class="auth-orb auth-orb-two"></div>
+        <div class="auth-panel">
+            <div class="auth-brand-mark">
+                <img src="assets/lending-pro-mark.png" alt="Lending Pro logo">
+            </div>
+            <p class="auth-eyebrow">LENDING PRO FREEWARE</p>
+            <h1 id="auth-company-name">Secure local workspace</h1>
+            <p id="auth-profile-name" class="auth-profile-name">Preparing your profile…</p>
+
+            <div id="auth-loading" class="auth-loading">
+                <span class="auth-spinner"></span>
+                <span>Opening your private workspace…</span>
+            </div>
+
+            <form id="auth-form" class="auth-form hidden" onsubmit="App.submitStartupLogin(event)">
+                <label for="auth-password">Profile password</label>
+                <div class="auth-input-wrap">
+                    <i data-lucide="lock-keyhole" class="w-4 h-4"></i>
+                    <input id="auth-password" type="password" autocomplete="current-password"
+                           placeholder="Enter your password" spellcheck="false">
+                    <button type="button" onclick="App.toggleLoginPassword()" aria-label="Show or hide password">
+                        <i id="auth-password-icon" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <p id="auth-error" class="auth-error hidden" role="alert"></p>
+                <button id="auth-submit" type="submit" class="auth-submit">
+                    <i data-lucide="unlock" class="w-4 h-4"></i>
+                    <span>Unlock workspace</span>
+                </button>
+            </form>
+
+            <div id="auth-load-error" class="auth-load-error hidden">
+                <p>Security settings could not be loaded.</p>
+                <button type="button" onclick="App.retryStartupAuthentication()">Try again</button>
+            </div>
+
+            <div class="auth-footer">
+                <span><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Offline protection</span>
+                <button type="button" onclick="App._doQuit()">Quit</button>
+            </div>
+        </div>
+    </section>
+
     <!-- ═══ Offline Banner ═══ -->
     <div id="offline-banner" class="offline-banner fixed top-0 left-0 right-0 z-50 hidden">
         <i data-lucide="wifi-off" class="w-4 h-4"></i>
@@ -35,8 +81,8 @@
             style="border-bottom: 0.5px solid rgba(0,0,0,0.07);">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300"
                 id="sidebar-logo"
-                style="background: var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,0.18);">
-                <i data-lucide="landmark" class="w-5 h-5 text-white" id="sidebar-logo-icon"></i>
+                style="background: #071b3a; box-shadow: 0 2px 6px rgba(0,0,0,0.18);">
+                <img src="assets/lending-pro-mark.png" class="w-full h-full object-cover" alt="Lending Pro">
             </div>
             <div class="min-w-0 flex-1">
                 <h1 id="sidebar-company-name" class="text-[14px] font-bold truncate leading-tight"
@@ -90,6 +136,10 @@
                 <i data-lucide="book-open" class="w-4 h-4"></i>
                 <span>Help &amp; Guide</span>
             </a>
+            <a class="sidebar-link" data-page="about" onclick="App.navigate('about')">
+                <i data-lucide="info" class="w-4 h-4"></i>
+                <span>About</span>
+            </a>
             <a class="sidebar-link" data-page="logs" onclick="App.navigate('logs')" title="Error and event log">
                 <i data-lucide="scroll-text" class="w-4 h-4"></i>
                 <span>System Logs</span>
@@ -102,13 +152,17 @@
                 <i data-lucide="moon" class="w-4 h-4" id="theme-icon"></i>
                 <span id="theme-label">Dark Mode</span>
             </button>
+            <button onclick="App.lockSession()" class="sidebar-link w-full hidden" id="lock-session-btn">
+                <i data-lucide="lock-keyhole" class="w-4 h-4"></i>
+                <span>Lock Session</span>
+            </button>
             <button onclick="App.quitApp()" class="sidebar-link w-full" style="color: var(--apple-red); opacity: 0.75;"
                 onmouseenter="this.style.opacity='1'; this.style.background='rgba(255,59,48,0.08)'"
                 onmouseleave="this.style.opacity='0.75'; this.style.background=''">
                 <i data-lucide="power" class="w-4 h-4"></i>
                 <span>Quit App</span>
             </button>
-            <p id="sidebar-version" class="text-[10px] text-center pt-1" style="color: var(--text-tertiary);">v1.3.2 - Lending Pro Freeware</p>
+            <p id="sidebar-version" class="text-[10px] text-center pt-1" style="color: var(--text-tertiary);">v1.5.0 - Lending Pro Freeware</p>
         </div>
     </aside>
 
@@ -143,9 +197,9 @@
                 <button id="demo-mode-btn" onclick="App.requestDemoMode()"
                     class="hidden btn btn-sm items-center gap-1.5 justify-center"
                     style="background:rgba(255,149,0,0.12); color:#B86700; border:1px solid rgba(255,149,0,0.28);"
-                    title="Tester le mode démo">
+                    title="Try demo mode">
                     <i id="demo-mode-icon" data-lucide="flask-conical" class="w-3.5 h-3.5"></i>
-                    <span id="demo-mode-label">Tester la démo</span>
+                    <span id="demo-mode-label">Try demo</span>
                 </button>
 
                 <!-- Online status -->
@@ -280,6 +334,7 @@
     <script src="pages/commissions.js"></script>
     <script src="pages/settings.js"></script>
     <script src="pages/help.js"></script>
+    <script src="pages/about.js"></script>
     <script src="pages/logs.js"></script>
     <script src="print_manager.js"></script>
     <script src="app.js"></script>

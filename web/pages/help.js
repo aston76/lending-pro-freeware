@@ -4,7 +4,11 @@
  */
 const HelpPage = {
 
-    sections: [
+    // Build the currency-aware guide only when the page is rendered. This file
+    // is loaded before app.js, so resolving the currency at script load time
+    // would reference App before it exists and prevent HelpPage initialization.
+    get sections() {
+        return [
         {
             icon: 'layout-dashboard',
             color: 'text-blue-500',
@@ -386,7 +390,7 @@ const HelpPage = {
                     </div>
                     <div>
                         <h5 class="font-semibold mb-2 text-gray-800 dark:text-white">Demo Mode</h5>
-                        <p>The application opens on an empty personal database. Use <strong>Tester la démo</strong> in the top-right toolbar to temporarily load fictitious data. Leaving the demo returns to the personal database, and restarting the application always starts outside demo mode.</p>
+                        <p>The application opens on an empty personal database. Use <strong>Try demo</strong> in the top-right toolbar to temporarily load fictitious data. Leaving the demo returns to the personal database, and restarting the application always starts outside demo mode.</p>
                     </div>
                 </div>
             `
@@ -467,7 +471,22 @@ const HelpPage = {
                 </div>
             `
         },
-    ],
+        {
+            icon: 'shield-check',
+            color: 'text-emerald-500',
+            title: 'Risk, Guarantors, Collateral & Collectors',
+            content: `
+                <div class="space-y-4 text-sm text-gray-600 dark:text-slate-400">
+                    <div><h5 class="font-semibold text-gray-800 dark:text-white mb-1">Guarantors and Collateral</h5><p>Add guarantors and co-makers from a loan profile, capture their signature, and register pledged assets with valuation, serial or plate number, and lifecycle status.</p></div>
+                    <div><h5 class="font-semibold text-gray-800 dark:text-white mb-1">Repayment Frequency and Effective APR</h5><p>New loans can use daily, weekly, every-two-weeks or monthly schedules. Processing fees, insurance fees and upfront interest reduce net disbursement; Effective APR reflects the real dated cash flows.</p></div>
+                    <div><h5 class="font-semibold text-gray-800 dark:text-white mb-1">Automatic Penalties</h5><p>Enable them in Settings. The engine waits for the grace period and creates at most one penalty per overdue installment. A principal-based cap can limit total automatic penalties.</p></div>
+                    <div><h5 class="font-semibold text-gray-800 dark:text-white mb-1">PAR and Aging</h5><p>The dashboard reports outstanding principal by aging bucket, PAR 1/30/60/90, portfolio yield and recovery after a loan was marked defaulted.</p></div>
+                    <div><h5 class="font-semibold text-gray-800 dark:text-white mb-1">Collectors</h5><p>Create collectors in Settings and assign them when creating a loan. Their managed principal, collections, overdue amount and average APR appear on the dashboard.</p></div>
+                </div>
+            `
+        },
+        ];
+    },
 
     render() {
         const content = document.getElementById('page-content');

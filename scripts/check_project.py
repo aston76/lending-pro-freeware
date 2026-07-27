@@ -24,6 +24,8 @@ PYTHON_FILES = [
     "pdf_generator.py",
     "demo_entry.py",
     "build_macos_demo.py",
+    "generate_icon.py",
+    "scripts/run_tests.py",
 ]
 JS_FILES = [
     "web/app.js",
@@ -31,6 +33,7 @@ JS_FILES = [
     "web/components.js",
     "web/print_manager.js",
     "web/pages/alerts.js",
+    "web/pages/about.js",
     "web/pages/calendar.js",
     "web/pages/client_detail.js",
     "web/pages/clients.js",

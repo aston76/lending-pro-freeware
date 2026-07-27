@@ -122,6 +122,36 @@ const ClientsPage = {
                         <input name="last_name" class="input" required placeholder="Dela Cruz">
                     </div>
                 </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">ID Number</label>
+                        <input name="id_number" class="input" placeholder="Passport / UMID / SSS">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Date of Birth</label>
+                        <input name="date_of_birth" type="date" class="input" max="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Employer</label>
+                        <input name="employer" class="input" placeholder="Company name">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Occupation</label>
+                        <input name="occupation" class="input" placeholder="Job title">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Gender</label>
+                        <select name="gender" class="input select">
+                            <option value="">— Not specified —</option>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="non_binary">Non-binary</option>
+                            <option value="prefer_not_to_say">Prefer not to say</option>
+                        </select>
+                    </div>
+                </div>
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Address</label>
                     <div class="flex gap-2">
@@ -198,6 +228,11 @@ const ClientsPage = {
             contact: form.contact.value.trim(),
             email: form.email.value || '',
             monthly_income: parseFloat(form.monthly_income.value) || 0,
+            id_number: form.id_number?.value || '',
+            date_of_birth: form.date_of_birth?.value || '',
+            employer: form.employer?.value || '',
+            occupation: form.occupation?.value || '',
+            gender: form.gender?.value || '',
             rating: parseInt(form.rating.value),
             referred_by: form.referred_by.value || null,
             notes: form.notes.value
@@ -230,6 +265,32 @@ const ClientsPage = {
                     <div>
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Last Name *</label>
                         <input name="last_name" class="input" required value="${client.last_name}">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">ID Number</label>
+                        <input name="id_number" class="input" value="${client.id_number || ''}" placeholder="Passport / UMID / SSS">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Date of Birth</label>
+                        <input name="date_of_birth" type="date" class="input" value="${client.date_of_birth || ''}" max="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Employer</label>
+                        <input name="employer" class="input" value="${client.employer || ''}" placeholder="Company name">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Occupation</label>
+                        <input name="occupation" class="input" value="${client.occupation || ''}" placeholder="Job title">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Gender</label>
+                        <select name="gender" class="input select">
+                            ${[['','— Not specified —'],['female','Female'],['male','Male'],['non_binary','Non-binary'],['prefer_not_to_say','Prefer not to say']].map(([value,label]) => `<option value="${value}" ${client.gender === value ? 'selected' : ''}>${label}</option>`).join('')}
+                        </select>
                     </div>
                 </div>
                 <div>
@@ -305,11 +366,20 @@ const ClientsPage = {
             contact: form.contact.value.trim(),
             email: form.email.value || '',
             monthly_income: parseFloat(form.monthly_income.value) || 0,
+            id_number: form.id_number?.value || '',
+            date_of_birth: form.date_of_birth?.value || '',
+            employer: form.employer?.value || '',
+            occupation: form.occupation?.value || '',
+            gender: form.gender?.value || '',
             rating: parseInt(form.rating.value),
             referred_by: form.referred_by.value || null,
             notes: form.notes.value
         };
-        await App.api('update_client', clientId, data);
+        const result = await App.api('update_client', clientId, data);
+        if (result?.success === false) {
+            UI.toast(result.error || 'Could not update client.', 'error');
+            return;
+        }
         UI.closeModal();
         UI.toast('Client updated successfully!', 'success');
         this.loadClients();
@@ -464,7 +534,7 @@ const ClientsPage = {
             UI.showMapModal(address, coords.lat, coords.lon, inputId);
         } else {
             // Pas de coords : geocoder le texte saisi
-            UI.toast('Localisation en cours…', 'info');
+            UI.toast('Locating address…', 'info');
             fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1',
                 { headers: { 'Accept-Language': 'en', 'User-Agent': 'Lending-Pro-Freeware/1.0' } })
                 .then(function (r) { return r.json(); })

@@ -9,7 +9,10 @@ const LoanDetailPage = {
     async render(loanId) {
         this.loanId = loanId;
         const content = document.getElementById('page-content');
-        const loan = await App.api('get_loan', loanId);
+        const [loan, collectors] = await Promise.all([
+            App.api('get_loan', loanId),
+            App.api('get_collectors', true),
+        ]);
 
         if (!loan) {
             content.innerHTML = UI.emptyState('file-x', 'Loan Not Found', 'This loan does not exist.');
@@ -20,7 +23,7 @@ const LoanDetailPage = {
         document.getElementById('page-title').textContent = `Loan #${loan.id}`;
         document.getElementById('page-subtitle').textContent = `${loan.first_name} ${loan.last_name} — ${loan.client_id}`;
 
-        const totalDue = loan.principal + loan.total_interest;
+        const totalDue = Number(loan.total_repayment || (loan.principal + loan.total_interest));
         const paidPct = totalDue > 0 ? Math.min(100, (loan.total_paid / totalDue * 100)).toFixed(1) : 0;
 
         content.innerHTML = `
@@ -47,11 +50,13 @@ const LoanDetailPage = {
             </div>
 
             <!-- Loan Summary -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stagger">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 stagger">
                 ${UI.statCard('banknote', 'Principal', UI.formatCurrency(loan.principal), 'blue')}
                 ${UI.statCard('percent', 'Total Interest', UI.formatCurrency(loan.total_interest), 'amber', `${(loan.interest_rate / (loan.original_term_months || loan.term_months)).toFixed(2)}% monthly · ${loan.interest_rate}% term`)}
+                ${UI.statCard('hand-coins', 'Net Disbursed', UI.formatCurrency(loan.disbursed_amount || loan.principal), 'purple', `Fees: ${UI.formatCurrency((loan.processing_fee || 0) + (loan.insurance_fee || 0))}`)}
+                ${UI.statCard('chart-no-axes-combined', 'Effective APR', `${Number(loan.taeg || 0).toFixed(2)}%`, 'amber', loan.interest_deducted_upfront ? 'Interest deducted upfront' : 'Interest paid with installments')}
                 ${UI.statCard('check-circle', 'Total Paid', UI.formatCurrency(loan.total_paid), 'green', `${paidPct}% complete`)}
-                ${UI.statCard('clock', 'Remaining', UI.formatCurrency(loan.remaining), loan.remaining <= 0 ? 'green' : 'red', `${loan.term_months} month term`)}
+                ${UI.statCard('clock', 'Remaining', UI.formatCurrency(loan.remaining), loan.remaining <= 0 ? 'green' : 'red', `${loan.installment_count || loan.schedule.length} ${(loan.repayment_frequency || 'monthly')} installments`)}
             </div>
 
             <!-- Progress Bar -->
@@ -80,7 +85,7 @@ const LoanDetailPage = {
                         <h4 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                             <i data-lucide="calendar-range" class="w-5 h-5 text-blue-500"></i> Amortization Schedule
                         </h4>
-                        <span class="text-xs text-gray-400 dark:text-slate-500">${loan.schedule.length} months</span>
+                        <span class="text-xs text-gray-400 dark:text-slate-500">${loan.schedule.length} ${(loan.repayment_frequency || 'monthly')} installments</span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
@@ -97,12 +102,10 @@ const LoanDetailPage = {
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-slate-800/50">
                             ${(() => {
-                let cumulativePaid = 0;
                 return loan.schedule.map(s => {
                     const isPast = new Date(s.due_date) < new Date();
                     const isToday = s.due_date === new Date().toISOString().split('T')[0];
-                    cumulativePaid += s.total_due;
-                    const isActuallyPaid = loan.total_paid >= cumulativePaid;
+                    const isActuallyPaid = Number(s.allocated || 0) >= Number(s.total_due) - 0.005;
                     const isOverdue = isPast && !isToday && !isActuallyPaid && loan.status === 'active';
                     const bgClass = isToday ? 'bg-amber-50/50 dark:bg-amber-900/20' : isOverdue ? 'bg-red-50/30 dark:bg-red-900/10' : '';
                     return `
@@ -157,7 +160,7 @@ const LoanDetailPage = {
                                             ${p.notes ? `<p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5 truncate">${p.notes}</p>` : ''}
                                         </div>
                                         <div class="flex items-center gap-1 flex-shrink-0">
-                                            <button onclick="event.stopPropagation(); PrintManager.openReceiptPdf(${p.id})" class="btn btn-ghost btn-sm" title="Prévisualiser reçu PDF">
+                                            <button onclick="event.stopPropagation(); PrintManager.openReceiptPdf(${p.id})" class="btn btn-ghost btn-sm" title="Preview PDF receipt">
                                                 <i data-lucide="eye" class="w-4 h-4"></i>
                                             </button>
                                             <button onclick="event.stopPropagation(); LoanDetailPage.generateReceipt(${p.id})" class="btn btn-ghost btn-sm" title="Open receipt preview">
@@ -181,9 +184,49 @@ const LoanDetailPage = {
                         <div class="space-y-2 text-sm">
                             <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Client</span><a onclick="App.navigate('client_detail', {id:'${loan.client_id}'})" class="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">${loan.first_name} ${loan.last_name}</a></div>
                             <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Interest Type</span><span class="font-medium">${loan.interest_type === 'fixed' ? 'Fixed Rate' : 'Declining Balance'}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Frequency</span><span class="font-medium capitalize">${(loan.repayment_frequency || 'monthly').replace('biweekly', 'Every 2 weeks')}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Installment</span><span class="font-medium">${UI.formatCurrency(loan.installment_amount || loan.monthly_payment)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Processing Fee</span><span class="font-medium">${UI.formatCurrency(loan.processing_fee || 0)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Insurance Fee</span><span class="font-medium">${UI.formatCurrency(loan.insurance_fee || 0)}</span></div>
+                            <div class="flex items-center justify-between gap-3"><span class="text-gray-500 dark:text-slate-400">Collector</span><select class="input select text-xs max-w-[180px]" onchange="LoanDetailPage.assignCollector(this.value)"><option value="">Unassigned</option>${(collectors || []).map(c => `<option value="${c.id}" ${loan.collector_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></div>
                             <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Start Date</span><span class="font-medium">${UI.formatDate(loan.start_date)}</span></div>
                             <div class="flex justify-between"><span class="text-gray-500 dark:text-slate-400">Created</span><span class="font-medium">${UI.formatDate(loan.created_at)}</span></div>
                         </div>
+                    </div>
+
+                    <div class="glass-card p-5">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-bold flex items-center gap-2"><i data-lucide="users-round" class="w-5 h-5 text-purple-500"></i> Guarantors</h4>
+                            <button onclick="LoanDetailPage.showGuarantorForm()" class="btn btn-sm btn-ghost"><i data-lucide="plus" class="w-4 h-4"></i> Add</button>
+                        </div>
+                        ${(loan.guarantors || []).length ? `<div class="space-y-2">${loan.guarantors.map(g => `
+                            <div class="p-3 rounded-xl" style="background:var(--surface-2);">
+                                <div class="flex justify-between gap-2">
+                                    <div class="min-w-0"><p class="font-semibold text-sm">${g.name}</p><p class="text-xs" style="color:var(--text-tertiary)">${g.relation || 'Relationship not specified'} · ${g.contact || 'No contact'}</p>${g.id_number ? `<p class="text-xs mt-1">ID: ${g.id_number}</p>` : ''}</div>
+                                    <div class="flex gap-1">
+                                        <button onclick="LoanDetailPage.showGuarantorForm(${g.id})" class="btn btn-sm btn-ghost" title="Edit guarantor"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                                        <button onclick="LoanDetailPage.showGuarantorSignature(${g.id})" class="btn btn-sm btn-ghost" title="${g.signature_path ? 'Replace signature' : 'Add signature'}"><i data-lucide="pen-line" class="w-4 h-4 ${g.signature_path ? 'text-green-500' : ''}"></i></button>
+                                        <button onclick="LoanDetailPage.deleteGuarantor(${g.id})" class="btn btn-sm btn-ghost text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                    </div>
+                                </div>
+                            </div>`).join('')}</div>` : `<p class="text-sm text-center py-3" style="color:var(--text-tertiary)">No guarantor registered</p>`}
+                    </div>
+
+                    <div class="glass-card p-5">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-bold flex items-center gap-2"><i data-lucide="gem" class="w-5 h-5 text-amber-500"></i> Collateral</h4>
+                            <button onclick="LoanDetailPage.showCollateralForm()" class="btn btn-sm btn-ghost"><i data-lucide="plus" class="w-4 h-4"></i> Add</button>
+                        </div>
+                        ${(loan.collateral || []).length ? `<div class="space-y-2">${loan.collateral.map(item => `
+                            <div class="p-3 rounded-xl" style="background:var(--surface-2);">
+                                <div class="flex justify-between gap-2">
+                                    <div class="min-w-0"><p class="font-semibold text-sm">${item.description}</p><p class="text-xs capitalize" style="color:var(--text-tertiary)">${item.collateral_type.replace('_', ' ')} · ${UI.formatCurrency(item.estimated_value || 0)}</p>${item.plate_number || item.serial_number ? `<p class="text-xs mt-1">${item.plate_number || item.serial_number}</p>` : ''}</div>
+                                    <div class="flex gap-1"><button onclick="LoanDetailPage.showCollateralForm(${item.id})" class="btn btn-sm btn-ghost"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button onclick="LoanDetailPage.deleteCollateral(${item.id})" class="btn btn-sm btn-ghost text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>
+                                </div>
+                                <select class="input select mt-2 text-xs" onchange="LoanDetailPage.setCollateralStatus(${item.id}, this.value)">
+                                    ${['pledged','released','seized','sold'].map(status => `<option value="${status}" ${item.status === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`).join('')}
+                                </select>
+                            </div>`).join('')}</div>` : `<p class="text-sm text-center py-3" style="color:var(--text-tertiary)">No collateral registered</p>`}
                     </div>
                 </div>
             </div>
@@ -191,10 +234,132 @@ const LoanDetailPage = {
         lucide.createIcons();
     },
 
+    showGuarantorForm(id = null) {
+        const guarantor = id ? (this.loan?.guarantors || []).find(item => item.id === id) : null;
+        UI.showModal(guarantor ? 'Edit Guarantor / Co-maker' : 'Add Guarantor / Co-maker', `
+            <form onsubmit="LoanDetailPage.submitGuarantor(event, ${id || 'null'})" class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-sm font-medium mb-1 block">Full Name *</label><input name="name" class="input" required value="${guarantor?.name || ''}"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Contact</label><input name="contact" class="input" type="tel" value="${guarantor?.contact || ''}"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Relationship</label><input name="relation" class="input" placeholder="Spouse, parent, colleague…" value="${guarantor?.relation || ''}"></div>
+                    <div><label class="text-sm font-medium mb-1 block">ID Number</label><input name="id_number" class="input" value="${guarantor?.id_number || ''}"></div>
+                </div>
+                <div><label class="text-sm font-medium mb-1 block">Address</label><input name="address" class="input" value="${guarantor?.address || ''}"></div>
+                <div><label class="text-sm font-medium mb-1 block">Notes</label><textarea name="notes" class="input" rows="2">${guarantor?.notes || ''}</textarea></div>
+                <div class="flex justify-end gap-2"><button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button><button class="btn btn-primary">${guarantor ? 'Save Changes' : 'Add Guarantor'}</button></div>
+            </form>`, { width: 'max-w-xl' });
+    },
+
+    async submitGuarantor(event, id = null) {
+        event.preventDefault();
+        const form = event.target;
+        const data = {
+            name: form.name.value, contact: form.contact.value, relation: form.relation.value,
+            id_number: form.id_number.value, address: form.address.value, notes: form.notes.value,
+        };
+        const result = id ? await App.api('update_guarantor', id, data) : await App.api('add_guarantor', this.loanId, data);
+        if (!result?.success) return UI.toast(result?.error || 'Could not add guarantor.', 'error');
+        UI.closeModal();
+        UI.toast('Guarantor added.', 'success');
+        await this.render(this.loanId);
+    },
+
+    deleteGuarantor(id) {
+        UI.confirm('Delete this guarantor?', async () => {
+            const result = await App.api('delete_guarantor', id);
+            if (!result?.success) return UI.toast(result?.error || 'Could not delete guarantor.', 'error');
+            UI.toast('Guarantor deleted.', 'success');
+            await this.render(this.loanId);
+        });
+    },
+
+    showGuarantorSignature(id) {
+        UI.showModal('Guarantor Signature', `
+            <div class="space-y-3">
+                <p class="text-xs" style="color:var(--text-tertiary)">Sign inside the box using a mouse, trackpad or touch screen.</p>
+                <canvas id="guarantor-signature-canvas" width="720" height="260" class="w-full rounded-xl bg-white" style="border:1px solid var(--border); touch-action:none;"></canvas>
+                <div class="flex justify-between"><button onclick="LoanDetailPage.clearGuarantorSignature()" class="btn btn-ghost">Clear</button><div class="flex gap-2"><button onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button><button onclick="LoanDetailPage.saveGuarantorSignature(${id})" class="btn btn-primary">Save Signature</button></div></div>
+            </div>`, { width: 'max-w-2xl' });
+        setTimeout(() => {
+            const canvas = document.getElementById('guarantor-signature-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#111827';
+            let drawing = false;
+            const point = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX-r.left)*canvas.width/r.width, (e.clientY-r.top)*canvas.height/r.height]; };
+            canvas.addEventListener('pointerdown', e => { drawing = true; const [x,y]=point(e); ctx.beginPath(); ctx.moveTo(x,y); canvas.setPointerCapture(e.pointerId); });
+            canvas.addEventListener('pointermove', e => { if (!drawing) return; const [x,y]=point(e); ctx.lineTo(x,y); ctx.stroke(); });
+            canvas.addEventListener('pointerup', () => { drawing = false; });
+            canvas.addEventListener('pointercancel', () => { drawing = false; });
+        }, 50);
+    },
+
+    clearGuarantorSignature() {
+        const canvas = document.getElementById('guarantor-signature-canvas');
+        canvas?.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    },
+
+    async saveGuarantorSignature(id) {
+        const canvas = document.getElementById('guarantor-signature-canvas');
+        if (!canvas) return;
+        const result = await App.api('save_guarantor_signature', id, canvas.toDataURL('image/png'));
+        if (!result?.success) return UI.toast(result?.error || 'Could not save signature.', 'error');
+        UI.closeModal(); UI.toast('Signature saved.', 'success'); await this.render(this.loanId);
+    },
+
+    showCollateralForm(id = null) {
+        const item = id ? (this.loan?.collateral || []).find(value => value.id === id) : null;
+        UI.showModal(item ? 'Edit Collateral' : 'Add Collateral', `
+            <form onsubmit="LoanDetailPage.submitCollateral(event, ${id || 'null'})" class="space-y-4">
+                <div><label class="text-sm font-medium mb-1 block">Description *</label><input name="description" class="input" required placeholder="Vehicle, property, equipment…" value="${item?.description || ''}"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-sm font-medium mb-1 block">Type</label><select name="collateral_type" class="input select">${[['vehicle','Vehicle'],['real_estate','Real estate'],['equipment','Equipment'],['jewelry','Jewelry'],['electronics','Electronics'],['other','Other']].map(([value,label]) => `<option value="${value}" ${item?.collateral_type === value ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
+                    <div><label class="text-sm font-medium mb-1 block">Estimated Value</label><input name="estimated_value" type="number" min="0" step="0.01" class="input" value="${item?.estimated_value || ''}"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Serial / Title Number</label><input name="serial_number" class="input" value="${item?.serial_number || ''}"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Plate Number</label><input name="plate_number" class="input" value="${item?.plate_number || ''}"></div>
+                </div>
+                <div><label class="text-sm font-medium mb-1 block">Notes</label><textarea name="notes" class="input" rows="2">${item?.notes || ''}</textarea></div>
+                <div class="flex justify-end gap-2"><button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button><button class="btn btn-primary">${item ? 'Save Changes' : 'Add Collateral'}</button></div>
+            </form>`, { width: 'max-w-xl' });
+    },
+
+    async submitCollateral(event, id = null) {
+        event.preventDefault(); const form = event.target;
+        const data = {
+            description: form.description.value, collateral_type: form.collateral_type.value,
+            estimated_value: parseFloat(form.estimated_value.value) || 0,
+            serial_number: form.serial_number.value, plate_number: form.plate_number.value,
+            notes: form.notes.value,
+        };
+        const result = id ? await App.api('update_collateral', id, data) : await App.api('add_collateral', this.loanId, data);
+        if (!result?.success) return UI.toast(result?.error || 'Could not add collateral.', 'error');
+        UI.closeModal(); UI.toast('Collateral added.', 'success'); await this.render(this.loanId);
+    },
+
+    async setCollateralStatus(id, status) {
+        const result = await App.api('update_collateral', id, { status });
+        if (!result?.success) UI.toast(result?.error || 'Could not update collateral.', 'error');
+        else UI.toast('Collateral status updated.', 'success');
+    },
+
+    async assignCollector(collectorId) {
+        const result = await App.api('assign_loan_collector', this.loanId, collectorId || null);
+        if (!result?.success) return UI.toast(result?.error || 'Could not assign collector.', 'error');
+        UI.toast('Collector assignment updated.', 'success');
+    },
+
+    deleteCollateral(id) {
+        UI.confirm('Delete this collateral record?', async () => {
+            const result = await App.api('delete_collateral', id);
+            if (!result?.success) return UI.toast(result?.error || 'Could not delete collateral.', 'error');
+            UI.toast('Collateral deleted.', 'success'); await this.render(this.loanId);
+        });
+    },
+
     showPaymentForm() {
         const today = new Date().toISOString().split('T')[0];
         const outstanding = Math.max(0, this.loan?.remaining || 0);
-        const suggested = Math.min(this.loan?.monthly_payment || outstanding, outstanding);
+        const suggested = Math.min(this.loan?.installment_amount || this.loan?.monthly_payment || outstanding, outstanding);
         UI.showModal('Record Payment', `
             <form onsubmit="LoanDetailPage.submitPayment(event)" class="space-y-4">
                 <div>

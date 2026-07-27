@@ -20,6 +20,7 @@ APP_PYTHON_FILES = [
     "app_config.py",
     "api.py",
     "backup.py",
+    "currency_utils.py",
     "database.py",
     "demo_generator.py",
     "excel_export.py",
@@ -127,9 +128,9 @@ exec "$PYTHON" "$APP_CODE/main.py" >> "$LOG_DIR/PH-Lending.log" 2>&1
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>1.5.0</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>7</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.14</string>
     <key>NSHighResolutionCapable</key>

@@ -1,5 +1,31 @@
 # Changelog
 
+Pour une présentation complète en français de toutes les nouveautés, consulter [`NOUVEAUTES.md`](NOUVEAUTES.md).
+
+## 1.5.0 - 2026-07-27
+
+- Replaced the legacy currency-symbol icon with a new international Lending Pro brand mark combining a financial ledger, portfolio growth and protection.
+- Added matching macOS ICNS, Windows ICO and in-app PNG assets generated from one versioned brand source.
+- Added an optional per-profile login screen shown before any business data is loaded.
+- Added backend session locking so public business API calls remain unavailable until the active profile is authenticated.
+- Added PBKDF2 password verification, legacy-hash upgrade support, five-attempt cooldown and manual session locking.
+- Added independent settings for profile-password protection and login at startup; existing installations continue directly to the app by default.
+- Fixed the Help & Guide module initialization order so its currency-aware content loads without a frontend error.
+- Added a cross-platform test launcher that automatically uses the local project virtual environment when available.
+
+## 1.4.0 - 2026-07-27
+
+- Added guarantors/co-makers with contact details, identity data and local signatures.
+- Added structured collateral records with valuation, identifiers and pledged/released/seized/sold lifecycle states.
+- Added extended borrower KYC: identity number, date of birth, employer, occupation and gender.
+- Added daily, weekly, biweekly and monthly repayment schedules while preserving legacy monthly loans.
+- Added processing and insurance fees, net disbursement, upfront-interest handling and dated effective APR calculation.
+- Added configurable, capped and idempotent automatic late penalties after a grace period.
+- Added PAR 1/30/60/90, aging buckets, portfolio yield and post-default recovery reporting.
+- Added collector management, loan assignment and performance reporting.
+- Extended contracts and Excel exports with the new lending, guarantor, collateral and collector data.
+- Added an About page with customization contact and made the visible application language consistently English.
+
 ## Unreleased documentation - 2026-07-27
 
 - Added the official Lending Pro marketing banner supplied by the project owner.

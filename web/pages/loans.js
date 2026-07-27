@@ -59,7 +59,7 @@ const LoansPage = {
                             <th>Principal</th>
                             <th>Rate</th>
                             <th>Term</th>
-                            <th>Monthly</th>
+                            <th>Installment</th>
                             <th>Paid</th>
                             <th>Status</th>
                             <th>Start</th>
@@ -67,7 +67,7 @@ const LoansPage = {
                     </thead>
                     <tbody>
                         ${data.loans.map(l => {
-            const totalDue = l.principal + l.total_interest;
+            const totalDue = Number(l.total_repayment || (l.principal + l.total_interest));
             const paidPct = totalDue > 0 ? Math.min(100, (l.total_paid / totalDue * 100)).toFixed(0) : 0;
             return `
                             <tr onclick="App.navigate('loan_detail', {id: ${l.id}})">
@@ -85,8 +85,8 @@ const LoansPage = {
                                         <span class="text-xs px-1.5 py-0.5 rounded-md inline-block w-fit font-medium ${l.interest_type === 'fixed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'}">${l.interest_type === 'fixed' ? 'Fixed' : 'Declining'}</span>
                                     </div>
                                 </td>
-                                <td><span class="text-sm">${l.term_months}mo</span></td>
-                                <td><span class="text-sm">${UI.formatCurrency(l.monthly_payment)}</span></td>
+                                <td><span class="text-sm">${l.term_months}mo · ${(l.repayment_frequency || 'monthly').replace('biweekly', '2 weeks')}</span></td>
+                                <td><span class="text-sm">${UI.formatCurrency(l.installment_amount || l.monthly_payment)}</span></td>
                                 <td>
                                     <div class="flex items-center gap-2">
                                         <div class="flex-1 bg-gray-200 dark:bg-slate-700 rounded-full h-1.5 w-16">
@@ -183,13 +183,16 @@ const LoansPage = {
     goToPage(p) { this.currentPage = p; this.loadLoans(); },
 
     async showCreateForm(presetClientId = null) {
-        const clients = await App.api('get_all_clients_simple');
+        const [clients, settings, collectors] = await Promise.all([
+            App.api('get_all_clients_simple'),
+            App.api('get_settings'),
+            App.api('get_collectors', true),
+        ]);
         if (clients.length === 0) {
             UI.toast('Please create a client first', 'warning');
             ClientsPage.showCreateForm();
             return;
         }
-        const settings = await App.api('get_settings');
         const defaultRate = settings.default_interest_rate || '5.0';
         const defaultType = settings.default_interest_type || 'fixed';
 
@@ -255,18 +258,53 @@ const LoansPage = {
                         <option value="total">Total for entire term</option>
                     </select>
                 </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Repayment Frequency</label>
+                        <select name="repayment_frequency" class="input select" onchange="LoansPage.previewLoan()">
+                            <option value="monthly">Monthly</option>
+                            <option value="biweekly">Every 2 weeks</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="daily">Daily</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Collector</label>
+                        <select name="collector_id" class="input select">
+                            <option value="">— Unassigned —</option>
+                            ${(collectors || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Processing Fee (${UI.currencyCode()})</label>
+                        <input name="processing_fee" type="number" min="0" step="0.01" class="input" value="0" oninput="LoansPage.previewLoan()">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Insurance Fee (${UI.currencyCode()})</label>
+                        <input name="insurance_fee" type="number" min="0" step="0.01" class="input" value="0" oninput="LoansPage.previewLoan()">
+                    </div>
+                </div>
+                <label class="flex items-start gap-3 p-3 rounded-xl cursor-pointer" style="background:var(--surface-2);">
+                    <input name="interest_deducted_upfront" type="checkbox" class="mt-0.5" onchange="LoansPage.previewLoan()">
+                    <span>
+                        <span class="block text-sm font-medium">Deduct interest upfront</span>
+                        <span class="block text-xs mt-0.5" style="color:var(--text-tertiary)">Interest is withheld from disbursement and is not charged again in installments.</span>
+                    </span>
+                </label>
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Start Date *</label>
-                    <input name="start_date" type="date" class="input" required value="${new Date().toISOString().split('T')[0]}">
+                    <input name="start_date" type="date" class="input" required value="${new Date().toISOString().split('T')[0]}" onchange="LoansPage.previewLoan()">
                 </div>
 
                 <!-- Loan Preview -->
                 <div id="loan-preview" class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30 hidden">
                     <p class="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-2">LOAN PREVIEW</p>
-                    <div class="grid grid-cols-3 gap-3 text-center">
+                    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 text-center">
                         <div>
                             <p class="text-lg font-bold text-gray-800 dark:text-white" id="preview-monthly">—</p>
-                            <p class="text-xs text-gray-500 dark:text-slate-400">Monthly Payment</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-400">Installment</p>
                         </div>
                         <div>
                             <p class="text-lg font-bold text-green-600 dark:text-green-400" id="preview-interest">—</p>
@@ -276,15 +314,47 @@ const LoansPage = {
                             <p class="text-lg font-bold text-gray-800 dark:text-white" id="preview-total">—</p>
                             <p class="text-xs text-gray-500 dark:text-slate-400">Total Amount</p>
                         </div>
+                        <div>
+                            <p class="text-lg font-bold text-blue-600 dark:text-blue-400" id="preview-disbursed">—</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-400">Net Disbursed</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-purple-600 dark:text-purple-400" id="preview-taeg">—</p>
+                            <p class="text-xs text-gray-500 dark:text-slate-400">Effective APR</p>
+                        </div>
                     </div>
                 </div>
+
+                <details class="rounded-xl p-3" style="background:var(--surface-2);">
+                    <summary class="cursor-pointer text-sm font-semibold">Optional guarantor / co-maker</summary>
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <input name="guarantor_name" class="input" placeholder="Full name">
+                        <input name="guarantor_contact" class="input" placeholder="Contact number">
+                        <input name="guarantor_relation" class="input" placeholder="Relationship">
+                        <input name="guarantor_id_number" class="input" placeholder="ID number">
+                    </div>
+                </details>
+                <details class="rounded-xl p-3" style="background:var(--surface-2);">
+                    <summary class="cursor-pointer text-sm font-semibold">Optional collateral</summary>
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <input name="collateral_description" class="input col-span-2" placeholder="Asset description">
+                        <select name="collateral_type" class="input select">
+                            <option value="vehicle">Vehicle</option><option value="real_estate">Real estate</option>
+                            <option value="equipment">Equipment</option><option value="jewelry">Jewelry</option>
+                            <option value="electronics">Electronics</option><option value="other">Other</option>
+                        </select>
+                        <input name="collateral_value" type="number" min="0" step="0.01" class="input" placeholder="Estimated value">
+                        <input name="collateral_serial" class="input" placeholder="Serial / title number">
+                        <input name="collateral_plate" class="input" placeholder="Plate number">
+                    </div>
+                </details>
 
                 <div class="flex gap-3 justify-end pt-2">
                     <button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button>
                     <button type="submit" class="btn btn-primary"><i data-lucide="check" class="w-4 h-4"></i> Create Loan</button>
                 </div>
             </form>
-        `, { width: 'max-w-xl' });
+        `, { width: 'max-w-3xl' });
         this.previewLoan();
     },
 
@@ -297,8 +367,13 @@ const LoansPage = {
         const type = form.interest_type?.value;
         const term = parseInt(form.term_months?.value);
         const rateDuration = form.rate_duration?.value;
+        const frequency = form.repayment_frequency?.value || 'monthly';
+        const processingFee = parseFloat(form.processing_fee?.value) || 0;
+        const insuranceFee = parseFloat(form.insurance_fee?.value) || 0;
+        const upfront = Boolean(form.interest_deducted_upfront?.checked);
+        const startDate = form.start_date?.value || new Date().toISOString().split('T')[0];
 
-        if (!principal || !rate || !term) {
+        if (!Number.isFinite(principal) || principal <= 0 || !Number.isFinite(rate) || rate < 0 || !term) {
             document.getElementById('loan-preview')?.classList.add('hidden');
             return;
         }
@@ -308,7 +383,8 @@ const LoansPage = {
         }
 
         try {
-            const preview = await App.api('calculate_loan_preview', principal, rate, type, term);
+            const preview = await App.api('calculate_loan_preview', principal, rate, type, term,
+                frequency, processingFee, insuranceFee, upfront, startDate);
             const el = document.getElementById('loan-preview');
             if (!preview || preview.success === false) {
                 el?.classList.add('hidden');
@@ -318,6 +394,8 @@ const LoansPage = {
             document.getElementById('preview-monthly').textContent = UI.formatCurrency(preview.monthly_payment);
             document.getElementById('preview-interest').textContent = UI.formatCurrency(preview.total_interest);
             document.getElementById('preview-total').textContent = UI.formatCurrency(preview.total_amount);
+            document.getElementById('preview-disbursed').textContent = UI.formatCurrency(preview.disbursed_amount);
+            document.getElementById('preview-taeg').textContent = `${Number(preview.taeg || 0).toFixed(2)}%`;
         } catch (e) { }
     },
 
@@ -335,13 +413,36 @@ const LoansPage = {
             finalRate = finalRate * parseInt(form.term_months.value);
         }
 
+        const guarantors = form.guarantor_name?.value.trim() ? [{
+            name: form.guarantor_name.value,
+            contact: form.guarantor_contact?.value || '',
+            relation: form.guarantor_relation?.value || '',
+            id_number: form.guarantor_id_number?.value || '',
+        }] : [];
+        const collateral = form.collateral_description?.value.trim() ? [{
+            description: form.collateral_description.value,
+            collateral_type: form.collateral_type?.value || 'other',
+            estimated_value: parseFloat(form.collateral_value?.value) || 0,
+            serial_number: form.collateral_serial?.value || '',
+            plate_number: form.collateral_plate?.value || '',
+        }] : [];
+
         const result = await App.api('create_loan',
             clientId,
             parseFloat(form.principal.value),
             finalRate,
             form.interest_type.value,
             parseInt(form.term_months.value),
-            form.start_date.value
+            form.start_date.value,
+            null,
+            false,
+            form.repayment_frequency.value,
+            parseFloat(form.processing_fee.value) || 0,
+            parseFloat(form.insurance_fee.value) || 0,
+            Boolean(form.interest_deducted_upfront.checked),
+            form.collector_id.value || null,
+            guarantors,
+            collateral
         );
         if (!result || result.success === false) {
             UI.toast(result?.error || 'Could not create loan.', 'error');

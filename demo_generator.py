@@ -100,15 +100,20 @@ def _add_client(c, cid, first, last, contact, rating=4, notes="", monthly_income
 
 def _add_loan(c, client_id, principal, rate, term, start_date, status="active"):
     total_term_rate = float(rate) * int(term)
-    summary = get_loan_summary(principal, total_term_rate, "fixed", term)
+    summary = get_loan_summary(
+        principal, total_term_rate, "fixed", term, "monthly", 0, 0, False, start_date
+    )
     now = start_date + " 08:00:00"
     c.execute("""
         INSERT INTO loans (client_id, principal, interest_rate, interest_type,
                            term_months, original_term_months, start_date, status, total_interest,
-                           monthly_payment, created_at)
-        VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?)
+                           monthly_payment, repayment_frequency, installment_count,
+                           installment_amount, disbursed_amount, total_repayment, taeg, created_at)
+        VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, 'monthly', ?, ?, ?, ?, ?, ?)
     """, (client_id, principal, total_term_rate, term, term, start_date, status,
-          summary["total_interest"], summary["monthly_payment"], now))
+          summary["total_interest"], summary["monthly_payment"], summary["installment_count"],
+          summary["installment_amount"], summary["disbursed_amount"],
+          summary["total_repayment"], summary["taeg"], now))
     return c.lastrowid, summary["monthly_payment"]
 
 

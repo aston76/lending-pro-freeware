@@ -156,7 +156,8 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         output_path:  Output .xlsx path
         sheets:       List of sheet names to include.
                       Possible values: 'clients', 'loans', 'payments',
-                       'amortization', 'penalties', 'commissions'
+                       'amortization', 'penalties', 'commissions',
+                       'guarantors', 'collateral', 'collectors'
         date_from:    Optional ISO date string 'YYYY-MM-DD' start filter
         date_to:      Optional ISO date string 'YYYY-MM-DD' end filter
 
@@ -164,7 +165,8 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         str: Path to the generated file
     """
     if not sheets:
-        sheets = ['clients', 'loans', 'payments', 'amortization', 'penalties', 'commissions']
+        sheets = ['clients', 'loans', 'payments', 'amortization', 'penalties',
+                  'commissions', 'guarantors', 'collateral', 'collectors']
 
     conn = get_connection()
     currency = currency_from_connection(conn)
@@ -190,7 +192,8 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
     # ── Clients ───────────────────────────────────────────────────
     if 'clients' in sheets:
         ws = wb.create_sheet('Clients')
-        headers = ["ID", "First Name", "Last Name", "Address", "Contact",
+        headers = ["ID", "First Name", "Last Name", "Address", "Contact", "Email",
+                   "ID Number", "Date of Birth", "Gender", "Employer", "Occupation",
                    "Rating", "Monthly Income", "Referred By", "Notes", "Created"]
         _style_header(ws, headers)
         df = date_filter_clause('created_at')
@@ -199,7 +202,9 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         for r in rows_to_list(c.fetchall()):
             rows.append([
                 r['id'], r['first_name'], r['last_name'], r['address'],
-                r['contact'], r['rating'], r.get('monthly_income', ''),
+                r['contact'], r.get('email', ''), r.get('id_number', ''),
+                r.get('date_of_birth', ''), r.get('gender', ''), r.get('employer', ''),
+                r.get('occupation', ''), r['rating'], r.get('monthly_income', ''),
                 r.get('referred_by', ''), r['notes'], r['created_at']
             ])
         _add_data_rows(ws, rows)
@@ -210,26 +215,35 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         ws = wb.create_sheet('Loans')
         headers = ["Loan ID", "Client ID", "Client Name", f"Principal ({currency})",
                    "Monthly Rate %", "Term Rate %", "Type", "Term (mo)", "Start Date", "Status",
-                   f"Total Interest ({currency})", f"Monthly Payment ({currency})",
+                   "Frequency", "Installments", f"Installment ({currency})",
+                   f"Total Interest ({currency})", f"Processing Fee ({currency})",
+                   f"Insurance Fee ({currency})", f"Net Disbursed ({currency})",
+                   f"Total Repayment ({currency})", "Effective APR %", "Collector",
                    f"Total Paid ({currency})", f"Remaining ({currency})", "Created"]
         _style_header(ws, headers)
         df = date_filter_clause('l.start_date')
         c.execute(f"""
-            SELECT l.*, c.first_name, c.last_name,
+            SELECT l.*, c.first_name, c.last_name, col.name AS collector_name,
                    (SELECT COALESCE(SUM(amount),0) FROM payments WHERE loan_id=l.id AND voided_at IS NULL) as total_paid
             FROM loans l JOIN clients c ON l.client_id = c.id
+            LEFT JOIN collectors col ON col.id = l.collector_id
             WHERE 1=1{df}
             ORDER BY l.created_at DESC
         """)
         rows = []
         for l in rows_to_list(c.fetchall()):
-            remaining = round(l['principal'] + l['total_interest'] - l['total_paid'], 2)
+            total_repayment = l.get('total_repayment') or (l['principal'] + l['total_interest'])
+            remaining = round(total_repayment - l['total_paid'], 2)
             rows.append([
                 l['id'], l['client_id'], f"{l['first_name']} {l['last_name']}",
                 l['principal'], round(l['interest_rate'] / max(l['original_term_months'] or l['term_months'], 1), 4),
                 l['interest_rate'], l['interest_type'],
                 l['term_months'], l['start_date'], l['status'],
-                l['total_interest'], l['monthly_payment'],
+                l.get('repayment_frequency', 'monthly'), l.get('installment_count', ''),
+                l.get('installment_amount') or l['monthly_payment'], l['total_interest'],
+                l.get('processing_fee', 0), l.get('insurance_fee', 0),
+                l.get('disbursed_amount') or l['principal'], total_repayment,
+                l.get('taeg', 0), l.get('collector_name', ''),
                 round(l['total_paid'], 2), remaining, l['created_at']
             ])
         _add_data_rows(ws, rows)
@@ -338,6 +352,37 @@ def export_selective(output_path, sheets, date_from=None, date_to=None):
         _add_data_rows(ws, rows)
         _auto_width(ws)
 
+    if 'guarantors' in sheets:
+        ws = wb.create_sheet('Guarantors')
+        headers = ["ID", "Loan ID", "Client ID", "Name", "Contact", "Relationship",
+                   "ID Number", "Address", "Signature", "Notes", "Created"]
+        _style_header(ws, headers)
+        c.execute("SELECT * FROM guarantors ORDER BY created_at DESC")
+        rows = [[g['id'], g['loan_id'], g['client_id'], g['name'], g['contact'], g['relation'],
+                 g['id_number'], g['address'], 'Yes' if g.get('signature_path') else 'No',
+                 g['notes'], g['created_at']] for g in rows_to_list(c.fetchall())]
+        _add_data_rows(ws, rows); _auto_width(ws)
+
+    if 'collateral' in sheets:
+        ws = wb.create_sheet('Collateral')
+        headers = ["ID", "Loan ID", "Client ID", "Description", "Type",
+                   f"Estimated Value ({currency})", "Serial Number", "Plate Number", "Status", "Notes", "Created"]
+        _style_header(ws, headers)
+        c.execute("SELECT * FROM collateral ORDER BY created_at DESC")
+        rows = [[x['id'], x['loan_id'], x['client_id'], x['description'], x['collateral_type'],
+                 x['estimated_value'], x['serial_number'], x['plate_number'], x['status'],
+                 x['notes'], x['created_at']] for x in rows_to_list(c.fetchall())]
+        _add_data_rows(ws, rows); _auto_width(ws)
+
+    if 'collectors' in sheets:
+        ws = wb.create_sheet('Collectors')
+        headers = ["ID", "Name", "Contact", "Active", "Notes", "Created"]
+        _style_header(ws, headers)
+        c.execute("SELECT * FROM collectors ORDER BY name")
+        rows = [[x['id'], x['name'], x['contact'], 'Yes' if x['active'] else 'No',
+                 x['notes'], x['created_at']] for x in rows_to_list(c.fetchall())]
+        _add_data_rows(ws, rows); _auto_width(ws)
+
     conn.close()
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
     wb.save(output_path)
@@ -352,5 +397,6 @@ def export_all_to_excel(output_path=None):
         output_path = os.path.join(BACKUP_DIR, f"PH-Lending_Export_{timestamp}.xlsx")
     return export_selective(
         output_path,
-        ['clients', 'loans', 'payments', 'amortization', 'penalties', 'commissions']
+        ['clients', 'loans', 'payments', 'amortization', 'penalties', 'commissions',
+         'guarantors', 'collateral', 'collectors']
     )

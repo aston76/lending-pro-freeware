@@ -173,11 +173,12 @@ def reset_profile_data():
     c = conn.cursor()
     # Delete in FK-safe order
     for table in ['payment_allocations', 'referral_commissions', 'penalties', 'payments',
-                  'amortization_schedule', 'documents', 'loans', 'clients']:
+                  'amortization_schedule', 'documents', 'guarantors', 'collateral',
+                  'loans', 'clients', 'collectors']:
         c.execute(f"DELETE FROM {table}")
     # Reset auto-increment
     c.execute("DELETE FROM sqlite_sequence WHERE name IN "
-              "('loans','payments','amortization_schedule','penalties','documents','referral_commissions','payment_allocations')")
+              "('loans','payments','amortization_schedule','penalties','documents','referral_commissions','payment_allocations','guarantors','collateral','collectors')")
     conn.commit()
     conn.close()
     return True
@@ -266,6 +267,11 @@ def init_database():
             id_photo_path   TEXT DEFAULT '',
             notes           TEXT DEFAULT '',
             monthly_income  REAL DEFAULT 0,
+            id_number       TEXT DEFAULT '',
+            date_of_birth   TEXT DEFAULT '',
+            employer        TEXT DEFAULT '',
+            occupation      TEXT DEFAULT '',
+            gender          TEXT DEFAULT '',
             created_at      TEXT NOT NULL,
             updated_at      TEXT NOT NULL,
             FOREIGN KEY (referred_by) REFERENCES clients(id) ON DELETE SET NULL
@@ -289,6 +295,18 @@ def init_database():
             monthly_payment     REAL NOT NULL DEFAULT 0,
             original_loan_id    INTEGER DEFAULT NULL,
             rollover_amount     REAL DEFAULT 0,
+            repayment_frequency TEXT NOT NULL DEFAULT 'monthly',
+            installment_count   INTEGER NOT NULL DEFAULT 0,
+            installment_amount  REAL NOT NULL DEFAULT 0,
+            processing_fee      REAL NOT NULL DEFAULT 0,
+            insurance_fee       REAL NOT NULL DEFAULT 0,
+            disbursed_amount    REAL NOT NULL DEFAULT 0,
+            interest_deducted_upfront INTEGER NOT NULL DEFAULT 0,
+            total_repayment     REAL NOT NULL DEFAULT 0,
+            taeg                REAL NOT NULL DEFAULT 0,
+            collector_id        INTEGER DEFAULT NULL,
+            defaulted_at        TEXT DEFAULT NULL,
+            balance_at_default  REAL NOT NULL DEFAULT 0,
             created_at          TEXT NOT NULL,
             FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
             FOREIGN KEY (original_loan_id) REFERENCES loans(id) ON DELETE SET NULL
@@ -383,10 +401,14 @@ def init_database():
             notes           TEXT DEFAULT '',
             status          TEXT NOT NULL DEFAULT 'pending'
                             CHECK(status IN ('pending', 'paid', 'waived')),
+            schedule_id     INTEGER DEFAULT NULL,
+            auto_generated  INTEGER NOT NULL DEFAULT 0,
+            days_overdue_at_creation INTEGER NOT NULL DEFAULT 0,
             penalty_date    TEXT NOT NULL,
             created_at      TEXT NOT NULL,
             FOREIGN KEY (loan_id)   REFERENCES loans(id)   ON DELETE CASCADE,
-            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+            FOREIGN KEY (schedule_id) REFERENCES amortization_schedule(id) ON DELETE CASCADE
         )
     """)
 
@@ -418,6 +440,58 @@ def init_database():
         )
     """)
 
+    # ── Collectors ───────────────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS collectors (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            contact     TEXT DEFAULT '',
+            active      INTEGER NOT NULL DEFAULT 1,
+            notes       TEXT DEFAULT '',
+            created_at  TEXT NOT NULL
+        )
+    """)
+
+    # ── Guarantors / Co-makers ───────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guarantors (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            loan_id         INTEGER NOT NULL,
+            client_id       TEXT NOT NULL,
+            name            TEXT NOT NULL,
+            contact         TEXT DEFAULT '',
+            relation        TEXT DEFAULT '',
+            id_number       TEXT DEFAULT '',
+            address         TEXT DEFAULT '',
+            signature_path  TEXT DEFAULT '',
+            notes           TEXT DEFAULT '',
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (loan_id)   REFERENCES loans(id)   ON DELETE CASCADE,
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ── Collateral / Guaranties ──────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS collateral (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            loan_id         INTEGER NOT NULL,
+            client_id       TEXT NOT NULL,
+            description     TEXT NOT NULL,
+            collateral_type TEXT NOT NULL DEFAULT 'other'
+                            CHECK(collateral_type IN ('vehicle', 'real_estate', 'equipment', 'jewelry', 'electronics', 'other')),
+            estimated_value REAL DEFAULT 0,
+            serial_number   TEXT DEFAULT '',
+            plate_number    TEXT DEFAULT '',
+            status          TEXT NOT NULL DEFAULT 'pledged'
+                            CHECK(status IN ('pledged', 'released', 'seized', 'sold')),
+            notes           TEXT DEFAULT '',
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (loan_id)   REFERENCES loans(id)   ON DELETE CASCADE,
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )
+    """)
+
     # ── Default settings ─────────────────────────────────────────
     defaults = {
         "commission_rate": "2.0",
@@ -431,7 +505,13 @@ def init_database():
         "company_name": APP_NAME,
         "company_phone": "",
         "company_address": "",
-        "company_contact": ""
+        "company_contact": "",
+        "startup_login_enabled": "false",
+        "auto_penalty_enabled": "false",
+        "auto_penalty_rate": "0",
+        "auto_penalty_grace_days": "3",
+        "auto_penalty_type": "fixed",
+        "auto_penalty_max_pct": "0"
     }
     for key, value in defaults.items():
         cursor.execute(
@@ -508,6 +588,11 @@ def init_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_penalties_loan ON penalties(loan_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_penalties_client ON penalties(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_guarantors_loan ON guarantors(loan_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_guarantors_client ON guarantors(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_collateral_loan ON collateral(loan_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_collateral_client ON collateral(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_collateral_status ON collateral(status)")
 
     # ── Safe migrations (add new columns to existing DBs) ────────
     migrations = [
@@ -520,6 +605,29 @@ def init_database():
         ("loans",    "original_term_months", "ALTER TABLE loans ADD COLUMN original_term_months INTEGER DEFAULT NULL"),
         ("payments", "voided_at",         "ALTER TABLE payments ADD COLUMN voided_at TEXT DEFAULT NULL"),
         ("payments", "void_reason",       "ALTER TABLE payments ADD COLUMN void_reason TEXT DEFAULT ''"),
+        # KYC extensions
+        ("clients",  "id_number",         "ALTER TABLE clients ADD COLUMN id_number TEXT DEFAULT ''"),
+        ("clients",  "date_of_birth",     "ALTER TABLE clients ADD COLUMN date_of_birth TEXT DEFAULT ''"),
+        ("clients",  "employer",          "ALTER TABLE clients ADD COLUMN employer TEXT DEFAULT ''"),
+        ("clients",  "occupation",        "ALTER TABLE clients ADD COLUMN occupation TEXT DEFAULT ''"),
+        ("clients",  "gender",            "ALTER TABLE clients ADD COLUMN gender TEXT DEFAULT ''"),
+        # Loan extensions: frequency, fees, upfront interest, TAEG
+        ("loans",    "repayment_frequency", "ALTER TABLE loans ADD COLUMN repayment_frequency TEXT DEFAULT 'monthly'"),
+        ("loans",    "processing_fee",      "ALTER TABLE loans ADD COLUMN processing_fee REAL DEFAULT 0"),
+        ("loans",    "insurance_fee",       "ALTER TABLE loans ADD COLUMN insurance_fee REAL DEFAULT 0"),
+        ("loans",    "disbursed_amount",    "ALTER TABLE loans ADD COLUMN disbursed_amount REAL DEFAULT 0"),
+        ("loans",    "interest_deducted_upfront", "ALTER TABLE loans ADD COLUMN interest_deducted_upfront INTEGER DEFAULT 0"),
+        ("loans",    "taeg",                "ALTER TABLE loans ADD COLUMN taeg REAL DEFAULT 0"),
+        ("loans",    "installment_count",   "ALTER TABLE loans ADD COLUMN installment_count INTEGER DEFAULT 0"),
+        ("loans",    "installment_amount",  "ALTER TABLE loans ADD COLUMN installment_amount REAL DEFAULT 0"),
+        ("loans",    "total_repayment",     "ALTER TABLE loans ADD COLUMN total_repayment REAL DEFAULT 0"),
+        ("loans",    "collector_id",        "ALTER TABLE loans ADD COLUMN collector_id INTEGER DEFAULT NULL"),
+        ("loans",    "defaulted_at",        "ALTER TABLE loans ADD COLUMN defaulted_at TEXT DEFAULT NULL"),
+        ("loans",    "balance_at_default",  "ALTER TABLE loans ADD COLUMN balance_at_default REAL DEFAULT 0"),
+        ("penalties", "schedule_id",        "ALTER TABLE penalties ADD COLUMN schedule_id INTEGER DEFAULT NULL"),
+        ("penalties", "auto_generated",     "ALTER TABLE penalties ADD COLUMN auto_generated INTEGER DEFAULT 0"),
+        ("penalties", "days_overdue_at_creation", "ALTER TABLE penalties ADD COLUMN days_overdue_at_creation INTEGER DEFAULT 0"),
+        ("guarantors", "signature_path",    "ALTER TABLE guarantors ADD COLUMN signature_path TEXT DEFAULT ''"),
     ]
     for table, column, sql in migrations:
         try:
@@ -534,6 +642,38 @@ def init_database():
         UPDATE loans
         SET original_term_months = term_months
         WHERE original_term_months IS NULL OR original_term_months < 1
+    """)
+    cursor.execute("""
+        UPDATE loans
+        SET repayment_frequency = COALESCE(NULLIF(repayment_frequency, ''), 'monthly'),
+            installment_count = CASE
+                WHEN installment_count IS NULL OR installment_count < 1
+                THEN (SELECT COUNT(*) FROM amortization_schedule a WHERE a.loan_id = loans.id)
+                ELSE installment_count
+            END,
+            installment_amount = CASE
+                WHEN installment_amount IS NULL OR installment_amount <= 0
+                THEN COALESCE((SELECT total_due FROM amortization_schedule a
+                               WHERE a.loan_id = loans.id ORDER BY month_number LIMIT 1), monthly_payment, 0)
+                ELSE installment_amount
+            END,
+            total_repayment = CASE
+                WHEN total_repayment IS NULL OR total_repayment <= 0
+                THEN COALESCE((SELECT SUM(total_due) FROM amortization_schedule a WHERE a.loan_id = loans.id),
+                              principal + total_interest)
+                ELSE total_repayment
+            END,
+            disbursed_amount = CASE
+                WHEN disbursed_amount IS NULL OR disbursed_amount <= 0 THEN principal
+                ELSE disbursed_amount
+            END
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_collector ON loans(collector_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_penalties_schedule ON penalties(schedule_id)")
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_penalties_auto_schedule
+        ON penalties(schedule_id) WHERE auto_generated = 1 AND schedule_id IS NOT NULL
     """)
 
     # Extend loans status constraint safely (SQLite doesn't support ALTER CONSTRAINT)
@@ -604,6 +744,11 @@ def init_database():
         "20260504_audit_events",
         "20260504_void_payments",
         "20260713_original_term_months",
+        "20260727_guarantors_collateral",
+        "20260727_kyc_extensions",
+        "20260727_loan_fees_frequency",
+        "20260727_auto_penalty_settings",
+        "20260727_startup_login",
     ]:
         cursor.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",

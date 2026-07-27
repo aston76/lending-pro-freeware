@@ -141,6 +141,59 @@ def test_profile_password_uses_pbkdf2_and_upgrades_legacy_hash(tmp_path, monkeyp
     assert upgraded.startswith("pbkdf2_sha256$")
 
 
+def test_optional_startup_login_locks_api_until_authenticated(tmp_path, monkeypatch):
+    api_obj, api_module, _, _ = fresh_api(tmp_path, monkeypatch)
+
+    configured = api_obj.set_profile_password("secure-pass-123", True)
+    assert configured["success"] is True
+    assert configured["startup_login_enabled"] is True
+
+    # Enabling the preference does not interrupt the current working session,
+    # but a fresh application session must start locked.
+    assert api_obj.get_startup_auth_state()["authenticated"] is True
+    fresh_session = api_module.Api()
+    state = fresh_session.get_startup_auth_state()
+    assert state["required"] is True
+    assert state["authenticated"] is False
+
+    blocked = fresh_session.get_settings()
+    assert blocked["auth_required"] is True
+    assert fresh_session.authenticate_startup("incorrect")["authenticated"] is False
+    assert fresh_session.authenticate_startup("secure-pass-123")["authenticated"] is True
+    assert fresh_session.get_settings()["startup_login_enabled"] == "true"
+
+    assert fresh_session.lock_session()["success"] is True
+    assert fresh_session.get_settings()["auth_required"] is True
+    assert fresh_session.authenticate_startup("secure-pass-123")["authenticated"] is True
+    assert fresh_session.set_startup_login_enabled(False)["success"] is True
+
+    unlocked_session = api_module.Api()
+    final_state = unlocked_session.get_startup_auth_state()
+    assert final_state["required"] is False
+    assert final_state["authenticated"] is True
+
+
+def test_brand_mark_is_wired_into_login_sidebar_and_about_page():
+    project_root = Path(__file__).resolve().parents[1]
+    brand_path = project_root / "web" / "assets" / "lending-pro-mark.png"
+    index_source = (project_root / "web" / "index.html").read_text(encoding="utf-8")
+    about_source = (project_root / "web" / "pages" / "about.js").read_text(encoding="utf-8")
+
+    assert brand_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert index_source.count("assets/lending-pro-mark.png") >= 2
+    assert "assets/lending-pro-mark.png" in about_source
+    assert 'id="auth-screen"' in index_source
+
+
+def test_help_content_is_built_only_after_app_initialization():
+    project_root = Path(__file__).resolve().parents[1]
+    help_source = (project_root / "web" / "pages" / "help.js").read_text(encoding="utf-8")
+
+    assert "get sections()" in help_source
+    eager_prefix = help_source.split("get sections()", 1)[0]
+    assert "UI.currencyCode()" not in eager_prefix
+
+
 def test_legacy_bank_payment_schema_migrates(tmp_path, monkeypatch):
     support_dir = app_support_dir(str(tmp_path))
     os.makedirs(support_dir, exist_ok=True)
@@ -529,6 +582,79 @@ def test_penalty_accepts_regular_currency_amount(tmp_path, monkeypatch):
     penalties = api_obj.get_penalties(client_id=client_id)
     assert penalties[0]["id"] == penalty_id
     assert penalties[0]["amount"] == 2500
+
+
+def test_extended_loan_model_persists_frequency_fees_kyc_and_security(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = api_obj.create_client({
+        "first_name": "Extended",
+        "last_name": "Borrower",
+        "monthly_income": 50000,
+        "id_number": "UMID-123",
+        "date_of_birth": "1990-01-02",
+        "employer": "Example Ltd",
+        "occupation": "Manager",
+        "gender": "prefer_not_to_say",
+    })
+    collector = api_obj.add_collector({"name": "Collector One", "contact": "+639000000000"})
+    created = api_obj.create_loan(
+        client_id, 10000, 18, "fixed", 6, "2026-01-01", None, False,
+        "weekly", 200, 100, True, collector["id"],
+        [{"name": "Co Maker", "contact": "+639111111111", "relation": "Sibling"}],
+        [{"description": "Motorcycle", "collateral_type": "vehicle",
+          "estimated_value": 20000, "plate_number": "QA-001"}],
+    )
+
+    assert created["success"] is True
+    loan = api_obj.get_loan(created["loan_id"])
+    client = api_obj.get_client(client_id)
+    assert loan["repayment_frequency"] == "weekly"
+    assert loan["installment_count"] == 26
+    assert loan["disbursed_amount"] == 7900
+    assert loan["total_repayment"] == 10000
+    assert loan["taeg"] > 0
+    assert len(loan["guarantors"]) == 1
+    assert len(loan["collateral"]) == 1
+    assert client["id_number"] == "UMID-123"
+    assert client["employer"] == "Example Ltd"
+
+
+def test_auto_penalties_are_idempotent_and_portfolio_risk_is_reported(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+    created = api_obj.create_loan(
+        client_id, 1200, 12, "fixed", 3, "2020-01-01",
+        None, False, "monthly", 0, 0, False,
+    )
+    assert created["success"] is True
+    assert api_obj.save_settings({
+        "auto_penalty_enabled": "true",
+        "auto_penalty_type": "percentage",
+        "auto_penalty_rate": "2",
+        "auto_penalty_grace_days": "3",
+        "auto_penalty_max_pct": "10",
+    }) is True
+
+    first = api_obj.apply_auto_penalties()
+    second = api_obj.apply_auto_penalties()
+    stats = api_obj.get_dashboard_stats()
+
+    assert first["success"] is True
+    assert first["created"] == 3
+    assert second["created"] == 0
+    assert stats["par_30"] == 100
+    assert stats["aging_buckets"]["90_plus"] == 1200
+
+
+def test_invalid_kyc_update_does_not_lock_database(tmp_path, monkeypatch):
+    api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
+    client_id = make_client(api_obj)
+
+    rejected = api_obj.update_client(client_id, {"date_of_birth": "not-a-date"})
+    assert rejected["success"] is False
+
+    created = api_obj.create_loan(client_id, 1200, 12, "fixed", 3, "2026-01-01")
+    assert created["success"] is True
 
 
 def test_money_and_rate_inputs_accept_cent_precision():

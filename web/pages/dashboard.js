@@ -5,11 +5,12 @@ const DashboardPage = {
     async render() {
         const content = document.getElementById('page-content');
 
-        const [stats, collections, recentPayments, overdueAlerts] = await Promise.all([
+        const [stats, collections, recentPayments, overdueAlerts, collectorPerformance] = await Promise.all([
             App.api('get_dashboard_stats'),
             App.api('get_today_collections'),
             App.api('get_recent_payments', 5),
             App.api('get_overdue_alerts'),
+            App.api('get_collector_performance'),
         ]);
 
         const criticalCount = overdueAlerts.filter(a => a.severity === 'critical' || a.severity === 'high').length;
@@ -18,9 +19,27 @@ const DashboardPage = {
             <!-- Stats Grid -->
             <div class="dashboard-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger">
                 ${UI.statCard('banknote', 'Active Capital', UI.formatCurrency(stats.active_capital), 'blue', `${stats.active_loans} active loans`)}
-                ${UI.statCard('trending-up', 'Interest Collected', UI.formatCurrency(stats.interest_collected), 'green', `from ${UI.formatCurrency(stats.total_collected)} received`)}
+                ${UI.statCard('trending-up', 'Interest Collected', UI.formatCurrency(stats.interest_collected), 'green', 'Payments plus upfront interest')}
                 ${UI.statCard('alert-triangle', 'Default Rate', stats.delinquency_rate + '%', 'red', `${stats.defaulted_loans} defaulted loans`)}
                 ${UI.statCard('users', 'Total Clients', stats.client_count, 'purple', `${stats.active_loans} active borrowers`)}
+            </div>
+
+            <!-- Risk & Yield -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger">
+                ${UI.statCard('shield-alert', 'PAR 30', `${Number(stats.par_30 || 0).toFixed(2)}%`, (stats.par_30 || 0) > 10 ? 'red' : 'amber', `${UI.formatCurrency((stats.aging_buckets?.['31_60'] || 0) + (stats.aging_buckets?.['61_90'] || 0) + (stats.aging_buckets?.['90_plus'] || 0))} at risk`)}
+                ${UI.statCard('chart-no-axes-combined', 'Average Effective APR', `${Number(stats.average_taeg || 0).toFixed(2)}%`, 'purple', 'Weighted by active principal')}
+                ${UI.statCard('badge-percent', 'Portfolio Yield', `${Number(stats.effective_yield || 0).toFixed(2)}%`, 'green', `${UI.formatCurrency(stats.fee_income || 0)} fees recorded`)}
+                ${UI.statCard('life-buoy', 'Default Recovery', `${Number(stats.post_default_recovery_rate || 0).toFixed(2)}%`, 'blue', `${UI.formatCurrency(stats.post_default_recovered || 0)} recovered`)}
+            </div>
+
+            <div class="glass-card p-5 mb-6">
+                <div class="flex items-center justify-between mb-4"><h3 class="font-bold">Portfolio Aging</h3><span class="text-xs" style="color:var(--text-tertiary)">Outstanding principal: ${UI.formatCurrency(stats.gross_outstanding_principal || 0)}</span></div>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    ${[['Current','current','#34C759'],['1–30 days','1_30','#FFCC00'],['31–60 days','31_60','#FF9500'],['61–90 days','61_90','#FF3B30'],['90+ days','90_plus','#AF1E2D']].map(([label,key,color]) => `
+                        <div class="rounded-xl p-3" style="background:var(--surface-2); border-top:3px solid ${color};">
+                            <p class="text-xs" style="color:var(--text-tertiary)">${label}</p><p class="font-bold mt-1">${UI.formatCurrency(stats.aging_buckets?.[key] || 0)}</p>
+                        </div>`).join('')}
+                </div>
             </div>
 
             <div class="mb-5 flex items-center justify-between gap-4 flex-wrap px-4 py-3 rounded-lg"
@@ -41,6 +60,13 @@ const DashboardPage = {
                     <span>Don</span>
                 </button>
             </div>
+
+            ${collectorPerformance?.length ? `<div class="glass-card p-5 mt-6">
+                <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="route" class="w-5 h-5 text-blue-500"></i> Collector Performance</h3>
+                <div class="overflow-x-auto"><table class="data-table"><thead><tr><th>Collector</th><th>Loans</th><th>Managed</th><th>Collected</th><th>Overdue</th><th>Avg. APR</th></tr></thead><tbody>
+                    ${collectorPerformance.map(c => `<tr><td><span class="font-semibold">${c.name}</span>${!c.active ? '<span class="ml-2 text-xs text-gray-400">Inactive</span>' : ''}</td><td>${c.active_loans || 0} active / ${c.loan_count || 0}</td><td>${UI.formatCurrency(c.principal_managed || 0)}</td><td class="text-green-600">${UI.formatCurrency(c.collected || 0)}</td><td class="text-red-500">${UI.formatCurrency(c.overdue_amount || 0)}</td><td>${Number(c.average_taeg || 0).toFixed(2)}%</td></tr>`).join('')}
+                </tbody></table></div>
+            </div>` : ''}
 
             ${overdueAlerts.length > 0 ? `
             <!-- Overdue Alert Banner -->

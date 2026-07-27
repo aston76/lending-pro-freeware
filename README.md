@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aston76/lending-pro-freeware/releases"><img alt="Version" src="https://img.shields.io/badge/version-1.3.2-1769aa"></a>
+  <a href="https://github.com/aston76/lending-pro-freeware/releases"><img alt="Version" src="https://img.shields.io/badge/version-1.5.0-1769aa"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-34C759"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-000000">
   <img alt="Offline" src="https://img.shields.io/badge/offline--first-FF9F0A">
@@ -31,10 +31,14 @@ Lending Pro Freeware is the complete, no-nonsense tool for anyone who lends mone
 
 It pairs the polish and speed of a modern macOS app with cent-exact accounting and true privacy.
 
-## What's new in the 1.3 series
+## What's new
+
+Le détail complet de toutes les nouveautés est disponible dans [NOUVEAUTES.md](NOUVEAUTES.md).
 
 | Version | Highlights |
 | --- | --- |
+| **1.5.0** | New international Lending Pro identity, matching macOS/Windows/web icons, and an optional per-profile login screen with PBKDF2 password protection, session locking and failed-attempt cooldown. |
+| **1.4.0** | Guarantors and signatures, structured collateral registry, extended KYC, daily/weekly/biweekly/monthly schedules, disclosed fees and net disbursement, effective APR, automatic late penalties, collectors, PAR/aging and post-default recovery reporting. |
 | **1.3.2** | Light theme by default, dark theme preserved as an option, corrected theme toggle, and a complete light-mode screenshot gallery. |
 | **1.3.1** | Donation reminder limited to once every 7 days, then once every 90 days after local donation confirmation; simplified local-only donation logic. |
 | **1.3.0** | One-command checksum-verified macOS installer, 22 currencies, worldwide address search, international phone numbers, and localized donation prompts. |
@@ -43,7 +47,7 @@ The GitHub project now also includes the official product banner, an animated ap
 
 ## Why Lending Pro Freeware
 
-- **100% offline and private.** No account, no login, no server, no analytics. Your client book lives on your Mac.
+- **100% offline and private.** No cloud account, no remote server and no analytics. An optional local profile login can protect access at startup.
 - **Free forever, no catches.** No trial, no paywall, no locked features. A voluntary donation is the only ask.
 - **Built for the field.** Webcam capture, signatures, ID documents, SMS reminders and a collection calendar designed for daily rounds.
 - **Cent-exact money.** Every schedule is computed with Decimal math, reconciled to its totals, and never drifts on rounding.
@@ -56,16 +60,18 @@ The GitHub project now also includes the official product banner, an animated ap
 | --- | --- |
 | **Dashboard** | Live portfolio overview: active capital, interest collected, default rate, total clients, today's collections and recent payments. |
 | **Clients** | Full borrower profiles with photo, rating, contact, monthly income, debt-to-income (DTI) ratio, documents and loan history. |
-| **Loans** | Fixed-rate and declining-balance schedules, amortization tables, status tracking (active / paid / refinanced / defaulted), extensions and rollovers. |
+| **Loans** | Fixed-rate and declining-balance schedules, daily/weekly/biweekly/monthly frequencies, disclosed fees, net disbursement, effective APR, status tracking, extensions and rollovers. |
 | **Payments** | Partial payments with smart allocation, voids with audit trail, multiple methods (cash, GCash, bank transfer, check). |
 | **Collections** | Monthly calendar of due dates, "who pays on day X" analytics, and monthly earnings trends. |
 | **Penalties** | Per-loan penalties with reason, notes and status, rolled into the client balance. |
+| **Risk & recovery** | PAR 1/30/60/90, aging buckets, portfolio yield, post-default recovery rate and collector performance. |
+| **Security** | Optional local login at startup, PBKDF2 password hashing, session locking, structured guarantors/co-makers with signatures and collateral lifecycle tracking. |
 | **Alerts & SMS** | Automatic overdue detection with severity tiers, one-tap SMS via Twilio or Semaphore, and editable templates. |
 | **Commissions** | Track referral commissions between clients and mark them paid. |
 | **Documents** | Attach contracts, IDs and files per client; rename or delete; batch-print selected documents. |
 | **Exports** | One-click Excel workbooks (full or selective) and professional PDFs: contracts, receipts, amortization schedules. |
 | **Backup** | Automatic local backup on every close, manual backups, Google Drive sync, and point-in-time restore. |
-| **Profiles** | Multiple isolated profiles (e.g. separate lenders), each optionally protected by a password. |
+| **Profiles** | Multiple isolated profiles (e.g. separate lenders), each with independent password and optional login-at-startup policy. |
 
 ### Live webcam capture & identity verification
 
@@ -134,7 +140,7 @@ Quality gates:
 
 ```bash
 npm run check   # Python compile + JS syntax
-npm test        # pytest suite
+npm test        # pytest suite; automatically uses .venv/venv when present
 ```
 
 The same checks run on every push and pull request via GitHub Actions.

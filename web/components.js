@@ -53,10 +53,10 @@ const UI = {
         const displayLon = hasCoords ? lon : 123.8854;
         const coordText = hasCoords
             ? (parseFloat(lat).toFixed(5) + ', ' + parseFloat(lon).toFixed(5))
-            : 'Deplacez l\'epingle pour preciser la position';
+            : 'Move the pin to refine the location';
 
         const confirmBtnHtml = inputId
-            ? '<button id="map-overlay-confirm" style="padding:6px 16px;border-radius:10px;border:none;cursor:pointer;background:#007AFF;color:#fff;font-size:13px;font-weight:600;">&#10003; Confirmer</button>'
+            ? '<button id="map-overlay-confirm" style="padding:6px 16px;border-radius:10px;border:none;cursor:pointer;background:#007AFF;color:#fff;font-size:13px;font-weight:600;">&#10003; Confirm</button>'
             : '';
 
         const overlay = document.createElement('div');

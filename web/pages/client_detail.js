@@ -19,11 +19,13 @@ const ClientDetailPage = {
         document.getElementById('page-subtitle').textContent = client.id;
 
         const activeLoans = (client.loans || []).filter(l => l.status === 'active');
-        const totalDebt = activeLoans.reduce((s, l) => s + (l.principal + l.total_interest - (l.total_paid || 0)), 0);
-        const totalMonthlyPayment = activeLoans.reduce((s, l) => s + (l.monthly_payment || 0), 0);
+        const totalDebt = activeLoans.reduce((s, l) => s + (Number(l.total_repayment || (l.principal + l.total_interest)) - (l.total_paid || 0)), 0);
+        const monthlyFactor = { daily: 365 / 12, weekly: 52 / 12, biweekly: 26 / 12, monthly: 1 };
+        const totalMonthlyPayment = activeLoans.reduce((s, l) => s + ((l.installment_amount || l.monthly_payment || 0) * (monthlyFactor[l.repayment_frequency || 'monthly'] || 1)), 0);
         const income = parseFloat(client.monthly_income || 0);
         const dti = income > 0 ? ((totalMonthlyPayment / income) * 100).toFixed(1) : null;
         const dtiHigh = dti && parseFloat(dti) > 40;
+        const age = client.date_of_birth ? Math.max(0, Math.floor((Date.now() - new Date(client.date_of_birth).getTime()) / 31557600000)) : null;
 
         const pendingPenalties = (client.penalties || []).filter(p => p.status === 'pending');
         const totalPenalties = pendingPenalties.reduce((s, p) => s + p.amount, 0);
@@ -95,7 +97,7 @@ const ClientDetailPage = {
                                     ${client.contact && client.contact.trim().length > 3 ? `
                                     <button onclick="ClientDetailPage.testPhoneNumber('${(client.contact || '').replace(/'/g, "\\'")}')"
                                             class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-600 transition-all duration-150 flex-shrink-0"
-                                            title="Envoyer un SMS de test à ce numéro">
+                                            title="Send a test SMS to this number">
                                         <i data-lucide="send" class="w-3 h-3"></i>
                                         <span class="text-[10px] font-semibold">Test</span>
                                     </button>` : ''}
@@ -118,6 +120,11 @@ const ClientDetailPage = {
                                 <span class="text-gray-500 dark:text-slate-300">Monthly Income</span>
                                 <span class="font-bold ${income === 0 ? 'text-gray-400 dark:text-slate-500' : 'text-gray-800 dark:text-gray-100'}">${income > 0 ? UI.formatCurrency(income) : 'Not set'}</span>
                             </div>
+                            ${client.id_number ? `<div class="flex justify-between"><span class="text-gray-500 dark:text-slate-300">ID Number</span><span class="font-medium text-right">${client.id_number}</span></div>` : ''}
+                            ${client.date_of_birth ? `<div class="flex justify-between"><span class="text-gray-500 dark:text-slate-300">Date of Birth</span><span class="font-medium">${UI.formatDate(client.date_of_birth)}${age !== null ? ` (${age})` : ''}</span></div>` : ''}
+                            ${client.employer ? `<div class="flex justify-between"><span class="text-gray-500 dark:text-slate-300">Employer</span><span class="font-medium text-right">${client.employer}</span></div>` : ''}
+                            ${client.occupation ? `<div class="flex justify-between"><span class="text-gray-500 dark:text-slate-300">Occupation</span><span class="font-medium text-right">${client.occupation}</span></div>` : ''}
+                            ${client.gender ? `<div class="flex justify-between"><span class="text-gray-500 dark:text-slate-300">Gender</span><span class="font-medium capitalize">${client.gender.replaceAll('_', ' ')}</span></div>` : ''}
                         </div>
                         <button onclick="ClientDetailPage.editClient()" class="btn btn-outline btn-sm w-full mt-3">
                             <i data-lucide="edit-3" class="w-3 h-3"></i> Edit Profile
@@ -167,7 +174,7 @@ const ClientDetailPage = {
                 return `
                         <div class="glass-card p-5">
                             <h4 class="font-bold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
-                                <i data-lucide="share-2" class="w-4 h-4 text-pink-500"></i> Réseaux Sociaux
+                                <i data-lucide="share-2" class="w-4 h-4 text-pink-500"></i> Social Media
                             </h4>
                             <div class="flex flex-col gap-2">
                                 ${sm.map(s => {
@@ -222,7 +229,7 @@ const ClientDetailPage = {
                         ${(client.loans || []).length === 0 ? UI.emptyState('banknote', 'No Loans', 'This client has no loans yet.') : `
                             <div class="space-y-3">
                                 ${client.loans.map(l => {
-                const totalDue = l.principal + l.total_interest;
+                const totalDue = Number(l.total_repayment || (l.principal + l.total_interest));
                 const paid = l.total_paid || 0;
                 const pct = totalDue > 0 ? Math.min(100, (paid / totalDue * 100)) : 0;
                 return `
@@ -234,7 +241,7 @@ const ClientDetailPage = {
                                                 <span class="font-bold text-sm">${UI.formatCurrency(l.principal)}</span>
                                             </div>
                                             ${l.status === 'active' ? `
-                                            <button onclick="event.stopPropagation(); ClientDetailPage.showQuickPaymentForm(${l.id}, ${l.monthly_payment || 0}, ${Math.max(0, totalDue - paid)})"
+                                            <button onclick="event.stopPropagation(); ClientDetailPage.showQuickPaymentForm(${l.id}, ${l.installment_amount || l.monthly_payment || 0}, ${Math.max(0, totalDue - paid)})"
                                                 class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white text-xs font-bold transition-all flex-shrink-0 shadow-sm"
                                                 title="Record a payment for this loan">
                                                 <i data-lucide="plus" class="w-3 h-3"></i> Pay
@@ -245,7 +252,7 @@ const ClientDetailPage = {
                                         </div>
                                         <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500 cursor-pointer" onclick="App.navigate('loan_detail', {id:${l.id}})">
                                             <span>${UI.formatCurrency(paid)} paid</span>
-                                            <span>${UI.formatCurrency(l.monthly_payment)}/mo • ${l.term_months}mo</span>
+                                            <span>${UI.formatCurrency(l.installment_amount || l.monthly_payment)} / ${(l.repayment_frequency || 'monthly').replace('biweekly', '2 weeks')} • ${l.term_months}mo</span>
                                         </div>
                                         ${l.rollover_amount > 0 ? `<p class="text-xs text-purple-500 dark:text-purple-400 mt-1">↩ Includes ${UI.formatCurrency(l.rollover_amount)} rollover from Loan #${l.original_loan_id}</p>` : ''}
                                     </div>`;
@@ -382,7 +389,7 @@ const ClientDetailPage = {
     },
 
     async takePhoto() {
-        UI.toast('Ouverture de la caméra...', 'info');
+        UI.toast('Opening camera…', 'info');
         const result = await App.api('capture_photo_native', this.clientId, 'photo', 'Profile Photo (SPACE = Capture, ESC = Cancel)');
         if (result && result.success) {
             UI.toast(result.message || 'Profile photo updated!', 'success');
@@ -393,7 +400,7 @@ const ClientDetailPage = {
     },
 
     async captureIdPhoto() {
-        UI.toast('Ouverture de la caméra...', 'info');
+        UI.toast('Opening camera…', 'info');
         const result = await App.api('capture_photo_native', this.clientId, 'id', 'ID Photo (SPACE = Capture, ESC = Cancel)');
         if (result && result.success) {
             UI.toast(result.message || 'ID photo saved!', 'success');
@@ -460,6 +467,15 @@ const ClientDetailPage = {
                         <input name="last_name" class="input" required id="edit-last-name">
                     </div>
                 </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-sm font-medium mb-1 block">ID Number</label><input name="id_number" id="edit-id-number" class="input"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Date of Birth</label><input name="date_of_birth" id="edit-date-of-birth" type="date" class="input" max="${new Date().toISOString().split('T')[0]}"></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div><label class="text-sm font-medium mb-1 block">Employer</label><input name="employer" id="edit-employer" class="input"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Occupation</label><input name="occupation" id="edit-occupation" class="input"></div>
+                    <div><label class="text-sm font-medium mb-1 block">Gender</label><select name="gender" id="edit-gender" class="input select"><option value="">Not specified</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
+                </div>
                 <div>
                     <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Address</label>
                     <div class="flex gap-2">
@@ -501,28 +517,33 @@ const ClientDetailPage = {
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label class="text-sm font-medium text-gray-600 dark:text-slate-400 flex items-center gap-1.5">
-                            <i data-lucide="share-2" class="w-3.5 h-3.5 text-pink-500"></i> Réseaux Sociaux
+                            <i data-lucide="share-2" class="w-3.5 h-3.5 text-pink-500"></i> Social Media
                         </label>
                         <button type="button" onclick="ClientDetailPage._addSocialRow()"
                             class="flex items-center gap-1 text-xs font-semibold text-blue-500 hover:text-blue-600 transition">
-                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Ajouter
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add
                         </button>
                     </div>
                     <div id="social-media-rows" class="space-y-2">
                         <!-- rows injected by JS -->
                     </div>
-                    <p class="text-[10px] text-gray-400 dark:text-slate-500 mt-1.5">Entrez le nom d'utilisateur, pas l'URL complète.</p>
+                    <p class="text-[10px] text-gray-400 dark:text-slate-500 mt-1.5">Enter the username, not the full URL.</p>
                 </div>
                 <div class="flex gap-3 justify-end pt-2">
                     <button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button>
                     <button type="submit" class="btn btn-primary"><i data-lucide="save" class="w-4 h-4"></i> Save Changes</button>
                 </div>
             </form>
-        `, { width: 'max-w-lg' });
+        `, { width: 'max-w-2xl' });
         // Pre-fill form with current data
         App.api('get_client', this.clientId).then(c => {
             document.getElementById('edit-first-name').value = c.first_name || '';
             document.getElementById('edit-last-name').value = c.last_name || '';
+            document.getElementById('edit-id-number').value = c.id_number || '';
+            document.getElementById('edit-date-of-birth').value = c.date_of_birth || '';
+            document.getElementById('edit-employer').value = c.employer || '';
+            document.getElementById('edit-occupation').value = c.occupation || '';
+            document.getElementById('edit-gender').value = c.gender || '';
             document.getElementById('cdetail-address-input').value = c.address || '';
             document.getElementById('edit-address-detail').value = c.address_detail || '';
             document.getElementById('edit-contact').value = c.contact || '';
@@ -549,7 +570,7 @@ const ClientDetailPage = {
             if (network && handle) socialMedia.push({ network, handle });
         });
 
-        await App.api('update_client', this.clientId, {
+        const result = await App.api('update_client', this.clientId, {
             first_name: form.first_name.value,
             last_name: form.last_name.value,
             address: form.address.value,
@@ -557,9 +578,18 @@ const ClientDetailPage = {
             contact: form.contact.value.trim(),
             email: form.email ? form.email.value : '',
             monthly_income: parseFloat(form.monthly_income.value) || 0,
+            id_number: form.id_number.value,
+            date_of_birth: form.date_of_birth.value,
+            employer: form.employer.value,
+            occupation: form.occupation.value,
+            gender: form.gender.value,
             notes: form.notes.value,
             social_media: JSON.stringify(socialMedia)
         });
+        if (result?.success === false) {
+            UI.toast(result.error || 'Could not update client.', 'error');
+            return;
+        }
         UI.closeModal();
         UI.toast('Client updated!', 'success');
         this.render(this.clientId);
@@ -768,7 +798,7 @@ const ClientDetailPage = {
                         <i data-lucide="smartphone" class="w-5 h-5 text-blue-500"></i>
                     </div>
                     <div>
-                        <p class="text-sm font-semibold" style="color:var(--text-primary)">Numéro cible</p>
+                        <p class="text-sm font-semibold" style="color:var(--text-primary)">Target Number</p>
                         <p class="text-base font-mono font-bold" style="color:var(--accent)">${phone}</p>
                     </div>
                 </div>
@@ -777,7 +807,7 @@ const ClientDetailPage = {
                     <p class="text-xs text-amber-700 dark:text-amber-400">
                         <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
                         A test SMS will be sent to this number through your iPhone using Mac Continuity.
-                        Assurez-vous que votre iPhone est connecté et que le relais SMS est activé.
+                        Make sure your iPhone is connected and SMS Relay is enabled.
                     </p>
                 </div>
 
@@ -793,7 +823,7 @@ const ClientDetailPage = {
                     <button onclick="ClientDetailPage._doSendTestSms('${phone.replace(/'/g, "\\'")}')"
                         class="btn btn-primary flex items-center gap-2">
                         <i data-lucide="send" class="w-4 h-4"></i>
-                        Envoyer le test
+                        Send Test
                     </button>
                 </div>
             </div>
@@ -804,7 +834,7 @@ const ClientDetailPage = {
     async _doSendTestSms(phone) {
         const message = document.getElementById('test-sms-message')?.value?.trim();
         if (!message) {
-            UI.toast('Veuillez écrire un message de test.', 'warning');
+            UI.toast('Please enter a test message.', 'warning');
             return;
         }
         UI.closeModal();

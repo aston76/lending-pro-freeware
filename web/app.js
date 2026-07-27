@@ -231,7 +231,7 @@ const DonationSupport = {
     async open() {
         const result = await App.api('open_url', this.url);
         if (!result?.success) {
-            UI.toast(result?.error || 'Impossible d’ouvrir la page de don.', 'error');
+            UI.toast(result?.error || 'Could not open the donation page.', 'error');
             return;
         }
         UI.closeModal();
@@ -260,6 +260,10 @@ const App = {
     language: 'en',
     isDemoOnly: false,
     isDemoEdition: false,
+    isDemoMode: false,
+    startupLoginEnabled: false,
+    _applicationReady: false,
+    _authCountdownTimer: null,
 
     // ─── Initialize ──────────────────────────────────────────
     async init() {
@@ -278,6 +282,173 @@ const App = {
         const savedColor = localStorage.getItem('ph-lending-color') || 'blue';
         this.applyColorTheme(savedColor);
         this.updateThemeUI();
+
+        await this.retryStartupAuthentication();
+    },
+
+    async retryStartupAuthentication() {
+        const loading = document.getElementById('auth-loading');
+        const form = document.getElementById('auth-form');
+        const loadError = document.getElementById('auth-load-error');
+        if (loading) loading.classList.remove('hidden');
+        if (form) form.classList.add('hidden');
+        if (loadError) loadError.classList.add('hidden');
+
+        let authState;
+        try {
+            authState = await pywebview.api.get_startup_auth_state();
+        } catch (error) {
+            authState = { success: false, error: error?.message || 'Security state unavailable.' };
+        }
+
+        if (!authState?.success) {
+            if (loading) loading.classList.add('hidden');
+            if (loadError) loadError.classList.remove('hidden');
+            return;
+        }
+
+        this.startupLoginEnabled = Boolean(authState.login_enabled);
+        if (authState.required && !authState.authenticated) {
+            this.showStartupLogin(authState);
+            return;
+        }
+
+        this.hideStartupLogin();
+        await this.initializeApplication();
+    },
+
+    showStartupLogin(state = {}) {
+        const screen = document.getElementById('auth-screen');
+        const loading = document.getElementById('auth-loading');
+        const form = document.getElementById('auth-form');
+        const loadError = document.getElementById('auth-load-error');
+        const company = document.getElementById('auth-company-name');
+        const profile = document.getElementById('auth-profile-name');
+        const input = document.getElementById('auth-password');
+        const error = document.getElementById('auth-error');
+        const sidebar = document.getElementById('sidebar');
+        const main = document.querySelector('main');
+
+        this.startupLoginEnabled = Boolean(state.login_enabled ?? state.required ?? true);
+        if (company) company.textContent = state.company_name || this.appName;
+        if (profile) profile.textContent = `${state.profile_name || 'Main Profile'} · Local data protected`;
+        if (loading) loading.classList.add('hidden');
+        if (loadError) loadError.classList.add('hidden');
+        if (form) form.classList.remove('hidden');
+        if (error) {
+            error.textContent = '';
+            error.classList.add('hidden');
+        }
+        if (input) input.value = '';
+        if (screen) screen.classList.remove('auth-hidden');
+        if (sidebar) sidebar.inert = true;
+        if (main) main.inert = true;
+        this._setAuthCooldown(Number(state.retry_after || 0));
+        setTimeout(() => input?.focus(), 120);
+        lucide.createIcons();
+    },
+
+    hideStartupLogin() {
+        const screen = document.getElementById('auth-screen');
+        const sidebar = document.getElementById('sidebar');
+        const main = document.querySelector('main');
+        clearInterval(this._authCountdownTimer);
+        if (screen) screen.classList.add('auth-hidden');
+        if (sidebar) sidebar.inert = false;
+        if (main) main.inert = false;
+    },
+
+    async submitStartupLogin(event) {
+        event?.preventDefault();
+        const input = document.getElementById('auth-password');
+        const button = document.getElementById('auth-submit');
+        const error = document.getElementById('auth-error');
+        const password = input?.value || '';
+        if (!password || button?.disabled) return;
+
+        if (button) button.disabled = true;
+        if (error) error.classList.add('hidden');
+        const result = await pywebview.api.authenticate_startup(password);
+        if (result?.authenticated) {
+            SoundEngine.success();
+            this.hideStartupLogin();
+            if (!this._applicationReady) await this.initializeApplication();
+            return;
+        }
+
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        if (error) {
+            const remaining = Number.isInteger(result?.attempts_remaining) && result.attempts_remaining > 0
+                ? ` ${result.attempts_remaining} attempt${result.attempts_remaining === 1 ? '' : 's'} remaining.`
+                : '';
+            error.textContent = (result?.error || 'Could not unlock this profile.') + remaining;
+            error.classList.remove('hidden');
+        }
+        const panel = document.querySelector('.auth-panel');
+        panel?.classList.remove('auth-shake');
+        requestAnimationFrame(() => panel?.classList.add('auth-shake'));
+        SoundEngine.error();
+        this._setAuthCooldown(Number(result?.retry_after || 0));
+        if (button && !result?.retry_after) button.disabled = false;
+    },
+
+    _setAuthCooldown(seconds) {
+        clearInterval(this._authCountdownTimer);
+        const button = document.getElementById('auth-submit');
+        const input = document.getElementById('auth-password');
+        const error = document.getElementById('auth-error');
+        let remaining = Math.max(0, Math.ceil(seconds));
+
+        const render = () => {
+            const blocked = remaining > 0;
+            if (button) {
+                button.disabled = blocked;
+                button.querySelector('span').textContent = blocked
+                    ? `Try again in ${remaining}s`
+                    : 'Unlock workspace';
+            }
+            if (input) input.disabled = blocked;
+            if (!blocked) {
+                clearInterval(this._authCountdownTimer);
+                input?.focus();
+            }
+            remaining -= 1;
+        };
+        render();
+        if (remaining >= 0 && seconds > 0) this._authCountdownTimer = setInterval(render, 1000);
+        if (seconds > 0 && error) {
+            error.textContent = `Too many attempts. Please wait ${Math.ceil(seconds)} seconds.`;
+            error.classList.remove('hidden');
+        }
+    },
+
+    toggleLoginPassword() {
+        const input = document.getElementById('auth-password');
+        const icon = document.getElementById('auth-password-icon');
+        if (!input || !icon) return;
+        const revealing = input.type === 'password';
+        input.type = revealing ? 'text' : 'password';
+        icon.setAttribute('data-lucide', revealing ? 'eye-off' : 'eye');
+        lucide.createIcons({ nodes: [icon] });
+        input.focus();
+    },
+
+    async lockSession() {
+        const result = await pywebview.api.lock_session();
+        if (!result?.success) {
+            UI.toast(result?.error || 'Could not lock this session.', 'warning');
+            return;
+        }
+        const state = await pywebview.api.get_startup_auth_state();
+        this.showStartupLogin(state);
+    },
+
+    async initializeApplication() {
+        if (this._applicationReady) return;
+        this._applicationReady = true;
         this.checkOnlineStatus();
         const appMode = await pywebview.api.get_app_mode();
         this.appName = appMode.name || this.appName;
@@ -286,7 +457,9 @@ const App = {
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
-        if (versionLabel) versionLabel.textContent = `v1.3.2 - ${this.appName}`;
+        if (versionLabel) versionLabel.textContent = `v1.5.0 - ${this.appName}`;
+        const lockButton = document.getElementById('lock-session-btn');
+        if (lockButton) lockButton.classList.toggle('hidden', !this.startupLoginEnabled);
         this.updateDemoControl();
         setInterval(() => this.checkOnlineStatus(), 30000);
         this.loadLogo();
@@ -347,8 +520,7 @@ const App = {
             if (logo) {
                 container.innerHTML = `<img src="${logo}" class="w-full h-full object-cover rounded-xl">`;
             } else {
-                container.innerHTML = `<i data-lucide="landmark" class="w-5 h-5 text-white"></i>`;
-                lucide.createIcons();
+                container.innerHTML = `<img src="assets/lending-pro-mark.png" class="w-full h-full object-cover" alt="Lending Pro">`;
             }
         } catch (e) { }
     },
@@ -368,11 +540,11 @@ const App = {
 
         button.classList.remove('hidden');
         button.classList.add('flex');
-        button.title = this.isDemoMode ? 'Quitter le mode démo' : 'Tester le mode démo';
+        button.title = this.isDemoMode ? 'Leave demo mode' : 'Try demo mode';
         button.style.cssText = this.isDemoMode
             ? 'background:#B86700; color:white; border:1px solid #B86700;'
             : 'background:rgba(255,149,0,0.12); color:#B86700; border:1px solid rgba(255,149,0,0.28);';
-        if (label) label.textContent = this.isDemoMode ? 'Quitter la démo' : 'Tester la démo';
+        if (label) label.textContent = this.isDemoMode ? 'Leave demo' : 'Try demo';
         if (icon) {
             icon.setAttribute('data-lucide', this.isDemoMode ? 'log-out' : 'flask-conical');
             lucide.createIcons({ nodes: [icon] });
@@ -389,10 +561,10 @@ const App = {
         if (button) button.disabled = true;
 
         try {
-            if (enabled) UI.toast('Préparation des données de démonstration…', 'info');
+            if (enabled) UI.toast('Preparing demonstration data…', 'info');
             const result = await this.api('toggle_demo_mode', enabled);
             if (!result?.success) {
-                UI.toast(result?.error || 'Impossible de changer le mode démo.', 'error');
+                UI.toast(result?.error || 'Could not change demo mode.', 'error');
                 return;
             }
 
@@ -408,7 +580,7 @@ const App = {
             await this.refreshAlertsBadge();
             await this.navigate('dashboard');
             UI.toast(
-                enabled ? 'Mode démo activé : données fictives uniquement.' : 'Mode démo quitté : base personnelle active.',
+                enabled ? 'Demo mode enabled: fictitious data only.' : 'Demo mode closed: personal database active.',
                 'success'
             );
         } finally {
@@ -445,6 +617,7 @@ const App = {
             commissions: ['Referral Commissions', 'Track referral earnings'],
             settings: ['Settings', 'Application configuration and backup'],
             help: ['Help & User Guide', 'Complete guide to using Lending Pro Freeware'],
+            about: ['About', 'Application information and custom development contact'],
             logs: ['System Logs', 'Persistent logs — errors & events'],
         };
 
@@ -465,6 +638,7 @@ const App = {
                 case 'commissions': await CommissionsPage.render(); break;
                 case 'settings': await SettingsPage.render(); break;
                 case 'help': await HelpPage.render(); break;
+                case 'about': await AboutPage.render(); break;
                 case 'logs':
                     content.innerHTML = LogsPage.render();
                     await LogsPage.init();

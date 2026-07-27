@@ -13,10 +13,12 @@ import math
 import json
 import sqlite3
 import base64
+import binascii
 import subprocess
 import webbrowser
 import traceback
 import threading
+import time
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
@@ -34,7 +36,10 @@ from database import (
     rename_profile as db_rename_profile, delete_profile as db_delete_profile,
     reset_profile_data, get_db_path
 )
-from loan_engine import distribute_money, generate_amortization_schedule, get_loan_summary
+from loan_engine import (
+    advance_due_date, distribute_money, generate_amortization_schedule,
+    get_installment_count, get_loan_summary,
+)
 from pdf_generator import generate_contract_pdf, generate_receipt_pdf, generate_amortization_pdf
 from excel_export import export_all_to_excel, export_selective
 from backup import (
@@ -64,6 +69,17 @@ def _normalize_payment_method(method):
             "Invalid payment method. Use cash, gcash, bank_transfer, or check."
         )
     return normalized
+
+
+def _loan_repayment_total(loan):
+    """Return the stored repayment total, with a legacy-loan fallback."""
+    try:
+        stored = float(loan["total_repayment"] or 0)
+    except (KeyError, TypeError, ValueError, IndexError):
+        stored = 0.0
+    if stored > 0:
+        return round(stored, 2)
+    return round(float(loan["principal"] or 0) + float(loan["total_interest"] or 0), 2)
 
 
 def _hash_profile_password(password, salt=None, iterations=PASSWORD_HASH_ITERATIONS):
@@ -159,7 +175,7 @@ def _camera_worker(title, queue):
                 break
                 
             display_frame = frame.copy()
-            cv2.putText(display_frame, "ESPACE=Prendre, ECHAP=Annuler", (20, 40), 
+            cv2.putText(display_frame, "SPACE=Capture, ESC=Cancel", (20, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
             cv2.imshow(title, display_frame)
             
@@ -190,9 +206,47 @@ def _camera_worker(title, queue):
 class Api:
     """API class exposed to the pywebview JavaScript frontend."""
 
+    _AUTH_EXEMPT_METHODS = frozenset({
+        "authenticate_startup",
+        "get_app_mode",
+        "get_startup_auth_state",
+        "quit_app",
+        "shutdown_services",
+    })
+
+    def __getattribute__(self, name):
+        """Block public API calls while the optional startup lock is active."""
+        attribute = object.__getattribute__(self, name)
+        if name.startswith("_") or name in object.__getattribute__(self, "_AUTH_EXEMPT_METHODS"):
+            return attribute
+        if not callable(attribute):
+            return attribute
+        try:
+            locked = (
+                object.__getattribute__(self, "_startup_login_required")
+                and not object.__getattribute__(self, "_session_authenticated")
+            )
+        except AttributeError:
+            locked = False
+        if not locked:
+            return attribute
+
+        def authentication_required(*_args, **_kwargs):
+            return {
+                "success": False,
+                "auth_required": True,
+                "error": "Unlock this profile to continue.",
+            }
+
+        return authentication_required
+
     def __init__(self):
         self._demo_only = DEMO_ONLY
         self._is_demo = False
+        self._startup_login_required = False
+        self._session_authenticated = True
+        self._login_failures = 0
+        self._login_blocked_until = 0.0
         self._window = None
         self._server = None
         self._shutdown_started = False
@@ -200,6 +254,40 @@ class Api:
         load_active_profile()
         set_demo_mode(False)
         init_database()
+        self._reset_startup_auth_session()
+
+    def _read_startup_security(self):
+        """Read startup lock settings without exposing the stored password hash."""
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                """
+                SELECT key, value FROM settings
+                WHERE key IN ('password_enabled', 'profile_password', 'startup_login_enabled', 'company_name')
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+        settings = {row["key"]: row["value"] for row in rows}
+        password_ready = (
+            settings.get("password_enabled") == "true"
+            and bool(settings.get("profile_password"))
+        )
+        login_enabled = password_ready and settings.get("startup_login_enabled") == "true"
+        return {
+            "password_ready": password_ready,
+            "login_enabled": login_enabled,
+            "password_hash": settings.get("profile_password", ""),
+            "company_name": settings.get("company_name") or APP_NAME,
+        }
+
+    def _reset_startup_auth_session(self):
+        """Apply the active profile's startup policy to a fresh session."""
+        security = self._read_startup_security()
+        self._startup_login_required = bool(security["login_enabled"])
+        self._session_authenticated = not self._startup_login_required
+        self._login_failures = 0
+        self._login_blocked_until = 0.0
 
     def _is_restricted_demo(self):
         return self._demo_only and self._is_demo
@@ -273,13 +361,13 @@ class Api:
 
     def _recompute_loan_status(self, cursor, loan_id):
         """Mark a loan paid or active based on non-voided payments."""
-        cursor.execute("SELECT principal, total_interest, status FROM loans WHERE id = ?", (loan_id,))
+        cursor.execute("SELECT principal, total_interest, total_repayment, status FROM loans WHERE id = ?", (loan_id,))
         loan = cursor.fetchone()
         if not loan:
             return
         if loan["status"] in ("defaulted", "refinanced"):
             return
-        total_due = loan["principal"] + loan["total_interest"]
+        total_due = _loan_repayment_total(loan)
         cursor.execute("""
             SELECT COALESCE(SUM(amount), 0)
             FROM payments
@@ -289,6 +377,11 @@ class Api:
         new_status = "paid" if total_paid >= total_due else "active"
         if new_status != loan["status"]:
             cursor.execute("UPDATE loans SET status = ? WHERE id = ?", (new_status, loan_id))
+            if new_status == "paid":
+                cursor.execute("""
+                    UPDATE collateral SET status = 'released'
+                    WHERE loan_id = ? AND status = 'pledged'
+                """, (loan_id,))
 
     def _fully_paid_installment_count(self, cursor, loan_id):
         """Count installments whose allocated, non-voided payments cover the amount due."""
@@ -358,7 +451,7 @@ class Api:
             importlib.reload(demo_generator)
             demo_generator.generate_demo_data()
 
-            return {"success": True, "message": "Données de démo régénérées avec succès !"}
+            return {"success": True, "message": "Demo data regenerated successfully."}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -382,9 +475,9 @@ class Api:
         return False
 
     def open_url(self, url):
-        """Open a URL in the system default browser (used for social media links)."""
+        """Open a URL (http/https) or mailto: link via the system default app."""
         try:
-            if not url or not (url.startswith('http://') or url.startswith('https://')):
+            if not url or not (url.startswith('http://') or url.startswith('https://') or url.startswith('mailto:')):
                 return {"success": False, "error": "Invalid URL"}
             webbrowser.open(url)
             return {"success": True}
@@ -445,6 +538,27 @@ class Api:
             ) allocations
         """)
         interest_collected = c.fetchone()[0]
+        c.execute("""
+            SELECT COALESCE(SUM(total_interest), 0)
+            FROM loans WHERE interest_deducted_upfront = 1
+        """)
+        upfront_interest_collected = c.fetchone()[0]
+        interest_collected = float(interest_collected) + float(upfront_interest_collected)
+
+        c.execute("SELECT COALESCE(SUM(processing_fee + insurance_fee), 0) FROM loans")
+        fee_income = float(c.fetchone()[0])
+        c.execute("SELECT COALESCE(SUM(disbursed_amount), 0) FROM loans")
+        total_disbursed = float(c.fetchone()[0])
+        effective_yield = (
+            (float(interest_collected) + fee_income) / total_disbursed * 100
+            if total_disbursed > 0 else 0
+        )
+        c.execute("""
+            SELECT COALESCE(SUM(taeg * principal), 0), COALESCE(SUM(principal), 0)
+            FROM loans WHERE status IN ('active', 'defaulted') AND taeg > 0
+        """)
+        weighted_taeg, weighted_principal = c.fetchone()
+        average_taeg = float(weighted_taeg) / float(weighted_principal) if weighted_principal else 0
 
         # Client count
         c.execute("SELECT COUNT(*) FROM clients")
@@ -465,6 +579,8 @@ class Api:
 
         conn.close()
 
+        risk = self.get_portfolio_risk_metrics()
+
         # Today's unpaid collections only. Paid installments must not remain due.
         today = datetime.now().strftime("%Y-%m-%d")
         today_rows = self.get_collections_by_date(today)
@@ -475,6 +591,9 @@ class Api:
             "active_capital": round(active_capital, 2),
             "total_capital": round(total_capital, 2),
             "interest_collected": round(interest_collected, 2),
+            "fee_income": round(fee_income, 2),
+            "effective_yield": round(effective_yield, 2),
+            "average_taeg": round(average_taeg, 2),
             "total_expected_interest": round(total_expected_interest, 2),
             "total_collected": round(total_collected, 2),
             "client_count": client_count,
@@ -482,8 +601,139 @@ class Api:
             "defaulted_loans": defaulted_loans,
             "delinquency_rate": delinquency_rate,
             "today_collections": today_collections,
-            "today_amount": round(today_amount, 2)
+            "today_amount": round(today_amount, 2),
+            **risk,
         }
+
+    def get_portfolio_risk_metrics(self):
+        """Return PAR ratios, aging buckets and post-default recovery metrics."""
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            today = datetime.now().date()
+            c.execute("""
+                SELECT l.id AS loan_id, l.status, a.id AS schedule_id, a.due_date,
+                       a.principal_portion, a.interest_portion, a.total_due,
+                       COALESCE(SUM(CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END), 0) AS allocated
+                FROM loans l
+                JOIN amortization_schedule a ON a.loan_id = l.id
+                LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                LEFT JOIN payments p ON p.id = pa.payment_id
+                WHERE l.status IN ('active', 'defaulted')
+                GROUP BY a.id
+                ORDER BY l.id, a.due_date
+            """)
+            loans = {}
+            for row in c.fetchall():
+                entry = loans.setdefault(row["loan_id"], {"principal_outstanding": 0.0, "oldest_due": None})
+                allocated = min(float(row["allocated"]), float(row["total_due"]))
+                interest_paid = min(float(row["interest_portion"]), allocated)
+                principal_paid = min(float(row["principal_portion"]), max(0.0, allocated - interest_paid))
+                open_principal = max(0.0, float(row["principal_portion"]) - principal_paid)
+                entry["principal_outstanding"] += open_principal
+                if allocated < float(row["total_due"]) - 0.005:
+                    due = datetime.strptime(row["due_date"], "%Y-%m-%d").date()
+                    if due < today and (entry["oldest_due"] is None or due < entry["oldest_due"]):
+                        entry["oldest_due"] = due
+
+            gross = round(sum(item["principal_outstanding"] for item in loans.values()), 2)
+            buckets = {"current": 0.0, "1_30": 0.0, "31_60": 0.0, "61_90": 0.0, "90_plus": 0.0}
+            par_amounts = {1: 0.0, 30: 0.0, 60: 0.0, 90: 0.0}
+            for item in loans.values():
+                amount = item["principal_outstanding"]
+                days = (today - item["oldest_due"]).days if item["oldest_due"] else 0
+                if days <= 0:
+                    buckets["current"] += amount
+                elif days <= 30:
+                    buckets["1_30"] += amount
+                elif days <= 60:
+                    buckets["31_60"] += amount
+                elif days <= 90:
+                    buckets["61_90"] += amount
+                else:
+                    buckets["90_plus"] += amount
+                for threshold in par_amounts:
+                    if days >= threshold:
+                        par_amounts[threshold] += amount
+
+            c.execute("""
+                SELECT l.id, l.balance_at_default,
+                       COALESCE(SUM(CASE
+                           WHEN p.voided_at IS NULL AND datetime(p.created_at) >= datetime(l.defaulted_at)
+                           THEN p.amount ELSE 0 END), 0) AS recovered
+                FROM loans l
+                LEFT JOIN payments p ON p.loan_id = l.id
+                WHERE l.defaulted_at IS NOT NULL AND l.balance_at_default > 0
+                GROUP BY l.id
+            """)
+            defaults = c.fetchall()
+            default_balance = sum(float(row["balance_at_default"]) for row in defaults)
+            recovered = sum(min(float(row["recovered"]), float(row["balance_at_default"])) for row in defaults)
+            recovery_rate = recovered / default_balance * 100 if default_balance > 0 else 0
+
+            return {
+                "gross_outstanding_principal": gross,
+                "aging_buckets": {key: round(value, 2) for key, value in buckets.items()},
+                "par_1": round(par_amounts[1] / gross * 100, 2) if gross else 0,
+                "par_30": round(par_amounts[30] / gross * 100, 2) if gross else 0,
+                "par_60": round(par_amounts[60] / gross * 100, 2) if gross else 0,
+                "par_90": round(par_amounts[90] / gross * 100, 2) if gross else 0,
+                "post_default_recovered": round(recovered, 2),
+                "post_default_recovery_rate": round(recovery_rate, 2),
+            }
+        finally:
+            conn.close()
+
+    def get_collector_performance(self):
+        """Return collection and arrears indicators per assigned collector."""
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("""
+                SELECT col.id, col.name, col.contact, col.active,
+                       COUNT(DISTINCT l.id) AS loan_count,
+                       SUM(CASE WHEN l.status = 'active' THEN 1 ELSE 0 END) AS active_loans,
+                       COALESCE(SUM(l.principal), 0) AS principal_managed,
+                       COALESCE((SELECT SUM(p.amount) FROM payments p
+                                 JOIN loans lp ON lp.id = p.loan_id
+                                 WHERE lp.collector_id = col.id AND p.voided_at IS NULL), 0) AS collected,
+                       COALESCE(AVG(CASE WHEN l.taeg > 0 THEN l.taeg END), 0) AS average_taeg
+                FROM collectors col
+                LEFT JOIN loans l ON l.collector_id = col.id
+                GROUP BY col.id ORDER BY col.active DESC, col.name
+            """)
+            result = rows_to_list(c.fetchall())
+            c.execute("""
+                SELECT loan_id, ROUND(SUM(total_due - allocated), 2) AS overdue_amount
+                FROM (
+                    SELECT a.loan_id, a.total_due,
+                           COALESCE(SUM(CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END), 0) AS allocated
+                    FROM amortization_schedule a
+                    JOIN loans l ON l.id = a.loan_id
+                    LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                    LEFT JOIN payments p ON p.id = pa.payment_id
+                    WHERE l.status IN ('active', 'defaulted') AND a.due_date < ?
+                    GROUP BY a.id
+                    HAVING allocated < a.total_due - 0.005
+                ) overdue_installments
+                GROUP BY loan_id
+            """, (datetime.now().strftime("%Y-%m-%d"),))
+            overdue_by_loan = {row["loan_id"]: row["overdue_amount"] for row in c.fetchall()}
+            c.execute("SELECT id, collector_id FROM loans WHERE collector_id IS NOT NULL")
+            collector_by_loan = {row["id"]: row["collector_id"] for row in c.fetchall()}
+            overdue_by_collector = {}
+            for loan_id, amount in overdue_by_loan.items():
+                collector_id = collector_by_loan.get(loan_id)
+                if collector_id:
+                    overdue_by_collector[collector_id] = overdue_by_collector.get(collector_id, 0) + amount
+            for row in result:
+                row["overdue_amount"] = round(overdue_by_collector.get(row["id"], 0), 2)
+                row["collected"] = round(float(row["collected"] or 0), 2)
+                row["principal_managed"] = round(float(row["principal_managed"] or 0), 2)
+                row["average_taeg"] = round(float(row["average_taeg"] or 0), 2)
+            return result
+        finally:
+            conn.close()
 
     # ═══════════════════════════════════════════════════════════════
     # CLIENTS (KYC)
@@ -506,15 +756,19 @@ class Api:
             c.execute(f"""
                 SELECT * FROM clients
                 WHERE first_name LIKE ? OR last_name LIKE ? OR id LIKE ? OR contact LIKE ?
+                   OR id_number LIKE ? OR employer LIKE ?
                 ORDER BY {sort} {order}
                 LIMIT ? OFFSET ?
-            """, (search_param, search_param, search_param, search_param, per_page, offset))
+            """, (search_param, search_param, search_param, search_param,
+                  search_param, search_param, per_page, offset))
             rows = rows_to_list(c.fetchall())
 
             c.execute("""
                 SELECT COUNT(*) FROM clients
                 WHERE first_name LIKE ? OR last_name LIKE ? OR id LIKE ? OR contact LIKE ?
-            """, (search_param, search_param, search_param, search_param))
+                   OR id_number LIKE ? OR employer LIKE ?
+            """, (search_param, search_param, search_param, search_param,
+                  search_param, search_param))
         else:
             c.execute(f"SELECT * FROM clients ORDER BY {sort} {order} LIMIT ? OFFSET ?",
                       (per_page, offset))
@@ -584,6 +838,20 @@ class Api:
         """, (client_id,))
         client['penalties'] = rows_to_list(c.fetchall())
 
+        c.execute("""
+            SELECT g.*, l.status AS loan_status
+            FROM guarantors g JOIN loans l ON l.id = g.loan_id
+            WHERE g.client_id = ? ORDER BY g.created_at DESC
+        """, (client_id,))
+        client['guarantors'] = rows_to_list(c.fetchall())
+
+        c.execute("""
+            SELECT co.*, l.status AS loan_status
+            FROM collateral co JOIN loans l ON l.id = co.loan_id
+            WHERE co.client_id = ? ORDER BY co.created_at DESC
+        """, (client_id,))
+        client['collateral'] = rows_to_list(c.fetchall())
+
         conn.close()
         return client
 
@@ -604,6 +872,14 @@ class Api:
             monthly_income = float(data.get("monthly_income") or 0)
             if not math.isfinite(monthly_income) or monthly_income < 0:
                 raise ValueError("Monthly income cannot be negative.")
+            date_of_birth = str(data.get("date_of_birth") or "").strip()
+            if date_of_birth:
+                parsed_birth = datetime.strptime(date_of_birth, "%Y-%m-%d")
+                if parsed_birth.date() > datetime.now().date():
+                    raise ValueError("Date of birth cannot be in the future.")
+            gender = str(data.get("gender") or "").strip().lower()
+            if gender not in {"", "female", "male", "non_binary", "prefer_not_to_say"}:
+                raise ValueError("Invalid gender value.")
 
             referred_by = data.get("referred_by") or None
             if referred_by:
@@ -615,8 +891,9 @@ class Api:
             c.execute("""
                 INSERT INTO clients
                     (id, first_name, last_name, address, address_detail, contact, email,
-                     rating, referred_by, notes, monthly_income, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     rating, referred_by, notes, monthly_income, id_number, date_of_birth,
+                     employer, occupation, gender, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 client_id,
                 first_name,
@@ -629,6 +906,11 @@ class Api:
                 referred_by,
                 str(data.get("notes") or "").strip(),
                 monthly_income,
+                str(data.get("id_number") or "").strip(),
+                date_of_birth,
+                str(data.get("employer") or "").strip(),
+                str(data.get("occupation") or "").strip(),
+                gender,
                 now,
                 now,
             ))
@@ -650,29 +932,70 @@ class Api:
     def update_client(self, client_id, data):
         """Update client details."""
         conn = get_connection()
-        c = conn.cursor()
-        now = datetime.now().isoformat()
+        try:
+            c = conn.cursor()
+            data = dict(data or {})
+            if "first_name" in data and not str(data["first_name"] or "").strip():
+                raise ValueError("First name is required.")
+            if "last_name" in data and not str(data["last_name"] or "").strip():
+                raise ValueError("Last name is required.")
+            if "date_of_birth" in data and data.get("date_of_birth"):
+                parsed_birth = datetime.strptime(str(data["date_of_birth"]), "%Y-%m-%d")
+                if parsed_birth.date() > datetime.now().date():
+                    raise ValueError("Date of birth cannot be in the future.")
+            if "gender" in data and str(data.get("gender") or "").lower() not in {
+                "", "female", "male", "non_binary", "prefer_not_to_say"
+            }:
+                raise ValueError("Invalid gender value.")
+            if "monthly_income" in data:
+                income = float(data.get("monthly_income") or 0)
+                if not math.isfinite(income) or income < 0:
+                    raise ValueError("Monthly income cannot be negative.")
+                data["monthly_income"] = income
+            if "rating" in data:
+                rating = int(data["rating"])
+                if rating < 1 or rating > 5:
+                    raise ValueError("Client rating must be between 1 and 5.")
+                data["rating"] = rating
+            if data.get("referred_by"):
+                if data["referred_by"] == client_id:
+                    raise ValueError("A client cannot refer themselves.")
+                c.execute("SELECT id FROM clients WHERE id = ?", (data["referred_by"],))
+                if not c.fetchone():
+                    raise ValueError("Referring client was not found.")
 
-        fields = []
-        values = []
-        for key in ['first_name', 'last_name', 'address', 'address_detail', 'contact', 'email',
-                     'rating', 'referred_by', 'notes', 'photo_path',
-                     'id_photo_path', 'monthly_income', 'social_media']:
-            if key in data:
-                fields.append(f"{key} = ?")
-                values.append(data[key] if data[key] != '' else (None if key == 'referred_by' else ''))
-
-        fields.append("updated_at = ?")
-        values.append(now)
-        values.append(client_id)
-
-        c.execute(f"UPDATE clients SET {', '.join(fields)} WHERE id = ?", values)
-        self._audit_event(c, "client_updated", "client", client_id, {
-            "fields": sorted(data.keys())
-        })
-        conn.commit()
-        conn.close()
-        return True
+            fields = []
+            values = []
+            allowed = [
+                'first_name', 'last_name', 'address', 'address_detail', 'contact', 'email',
+                'rating', 'referred_by', 'notes', 'photo_path', 'id_photo_path',
+                'monthly_income', 'social_media', 'id_number', 'date_of_birth',
+                'employer', 'occupation', 'gender',
+            ]
+            for key in allowed:
+                if key in data:
+                    fields.append(f"{key} = ?")
+                    value = data[key]
+                    values.append(value if value != '' else (None if key == 'referred_by' else ''))
+            fields.append("updated_at = ?")
+            values.extend([datetime.now().isoformat(), client_id])
+            c.execute(f"UPDATE clients SET {', '.join(fields)} WHERE id = ?", values)
+            if c.rowcount == 0:
+                raise ValueError("Client not found.")
+            self._audit_event(c, "client_updated", "client", client_id, {
+                "fields": sorted(data.keys())
+            })
+            conn.commit()
+            return True
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            conn.rollback()
+            app_logger.log_exception("update_client", e)
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
     def delete_client(self, client_id):
         """Delete a client and all related data."""
@@ -697,15 +1020,26 @@ class Api:
     # LOANS
     # ═══════════════════════════════════════════════════════════════
 
-    def calculate_loan_preview(self, principal, rate, interest_type, term_months):
+    def calculate_loan_preview(
+        self, principal, rate, interest_type, term_months,
+        repayment_frequency="monthly", processing_fee=0, insurance_fee=0,
+        interest_deducted_upfront=False, start_date=None,
+    ):
         """Preview loan calculations without creating."""
         try:
-            return get_loan_summary(principal, rate, interest_type, term_months)
+            return get_loan_summary(
+                principal, rate, interest_type, term_months,
+                repayment_frequency, processing_fee, insurance_fee,
+                bool(interest_deducted_upfront), start_date,
+            )
         except ValueError as e:
             return {"success": False, "error": str(e)}
 
     def create_loan(self, client_id, principal, rate, interest_type, term_months, start_date,
-                    rollover_from_loan_id=None, renewal_mode=False):
+                    rollover_from_loan_id=None, renewal_mode=False,
+                    repayment_frequency="monthly", processing_fee=0,
+                    insurance_fee=0, interest_deducted_upfront=False,
+                    collector_id=None, guarantors=None, collateral=None):
         """
         Create a new loan with full amortization schedule.
 
@@ -735,6 +1069,10 @@ class Api:
             rate = float(rate)
             term_months = int(term_months)
             interest_type = str(interest_type or "").strip().lower()
+            repayment_frequency = str(repayment_frequency or "monthly").strip().lower()
+            processing_fee = float(processing_fee or 0)
+            insurance_fee = float(insurance_fee or 0)
+            interest_deducted_upfront = bool(interest_deducted_upfront)
             if not math.isfinite(new_principal) or new_principal <= 0:
                 raise ValueError("Principal must be greater than zero.")
             if not math.isfinite(rate) or rate < 0:
@@ -743,7 +1081,20 @@ class Api:
                 raise ValueError("Loan term must be between 1 and 120 months.")
             if interest_type not in {"fixed", "declining"}:
                 raise ValueError("Interest type must be fixed or declining.")
+            if repayment_frequency not in {"daily", "weekly", "biweekly", "monthly"}:
+                raise ValueError("Invalid repayment frequency.")
+            if not math.isfinite(processing_fee) or processing_fee < 0:
+                raise ValueError("Processing fee cannot be negative.")
+            if not math.isfinite(insurance_fee) or insurance_fee < 0:
+                raise ValueError("Insurance fee cannot be negative.")
             datetime.strptime(start_date, "%Y-%m-%d")
+
+            normalized_collector_id = None
+            if collector_id not in (None, "", 0, "0"):
+                normalized_collector_id = int(collector_id)
+                c.execute("SELECT id FROM collectors WHERE id = ? AND active = 1", (normalized_collector_id,))
+                if not c.fetchone():
+                    raise ValueError("Selected collector was not found or is inactive.")
 
             rollover_amount = 0.0
             cash_given_to_client = new_principal  # default: full principal is cash
@@ -752,7 +1103,7 @@ class Api:
             # Handle rollover / refinancing
             if rollover_id:
                 c.execute(
-                    "SELECT principal, total_interest, status FROM loans WHERE id = ? AND client_id = ?",
+                    "SELECT principal, total_interest, total_repayment, status FROM loans WHERE id = ? AND client_id = ?",
                     (rollover_id, client_id)
                 )
                 old_loan = c.fetchone()
@@ -765,7 +1116,7 @@ class Api:
                 if renewal_mode and paid_count < 3:
                     raise ValueError("Renewal requires at least 3 fully paid installments on the active loan.")
 
-                total_due_old = old_loan['principal'] + old_loan['total_interest']
+                total_due_old = _loan_repayment_total(old_loan)
                 c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL",
                           (rollover_id,))
                 already_paid = c.fetchone()[0]
@@ -786,23 +1137,37 @@ class Api:
                 c.execute("UPDATE loans SET status = 'refinanced' WHERE id = ?", (rollover_id,))
 
             # Calculate loan
-            summary = get_loan_summary(new_principal, rate, interest_type, term_months)
+            summary = get_loan_summary(
+                new_principal, rate, interest_type, term_months,
+                repayment_frequency, processing_fee, insurance_fee,
+                interest_deducted_upfront, start_date,
+            )
             schedule = generate_amortization_schedule(
-                new_principal, rate, interest_type, term_months, start_date
+                new_principal, rate, interest_type, term_months, start_date,
+                repayment_frequency, interest_deducted_upfront,
             )
             if not schedule:
                 raise ValueError("Could not generate amortization schedule.")
 
             # Insert loan
             c.execute("""
-                INSERT INTO loans (client_id, principal, interest_rate, interest_type,
-                                  term_months, original_term_months, start_date, status, total_interest,
-                                  monthly_payment, original_loan_id, rollover_amount, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+                INSERT INTO loans (
+                    client_id, principal, interest_rate, interest_type,
+                    term_months, original_term_months, start_date, status, total_interest,
+                    monthly_payment, original_loan_id, rollover_amount,
+                    repayment_frequency, installment_count, installment_amount,
+                    processing_fee, insurance_fee, disbursed_amount,
+                    interest_deducted_upfront, total_repayment, taeg, collector_id, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 client_id, new_principal, rate, interest_type, term_months, term_months,
                 start_date, summary['total_interest'], summary['monthly_payment'],
-                rollover_id, rollover_amount, now
+                rollover_id, rollover_amount, repayment_frequency,
+                summary['installment_count'], summary['installment_amount'],
+                processing_fee, insurance_fee, summary['disbursed_amount'],
+                int(interest_deducted_upfront), summary['total_repayment'],
+                summary['taeg'], normalized_collector_id, now,
             ))
             loan_id = c.lastrowid
 
@@ -817,6 +1182,45 @@ class Api:
                     loan_id, entry['month_number'], entry['due_date'],
                     entry['principal_portion'], entry['interest_portion'],
                     entry['total_due'], entry['balance_remaining']
+                ))
+
+            for item in guarantors or []:
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    continue
+                c.execute("""
+                    INSERT INTO guarantors
+                        (loan_id, client_id, name, contact, relation, id_number,
+                         address, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    loan_id, client_id, name, str(item.get("contact") or "").strip(),
+                    str(item.get("relation") or "").strip(),
+                    str(item.get("id_number") or "").strip(),
+                    str(item.get("address") or "").strip(),
+                    str(item.get("notes") or "").strip(), now,
+                ))
+
+            for item in collateral or []:
+                description = str(item.get("description") or "").strip()
+                if not description:
+                    continue
+                collateral_type = str(item.get("collateral_type") or "other").strip().lower()
+                if collateral_type not in {"vehicle", "real_estate", "equipment", "jewelry", "electronics", "other"}:
+                    raise ValueError("Invalid collateral type.")
+                estimated_value = float(item.get("estimated_value") or 0)
+                if not math.isfinite(estimated_value) or estimated_value < 0:
+                    raise ValueError("Collateral value cannot be negative.")
+                c.execute("""
+                    INSERT INTO collateral
+                        (loan_id, client_id, description, collateral_type,
+                         estimated_value, serial_number, plate_number, status, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pledged', ?, ?)
+                """, (
+                    loan_id, client_id, description, collateral_type, estimated_value,
+                    str(item.get("serial_number") or "").strip(),
+                    str(item.get("plate_number") or "").strip(),
+                    str(item.get("notes") or "").strip(), now,
                 ))
 
             # Auto-create referral commission if client was referred
@@ -842,6 +1246,9 @@ class Api:
                 "principal": new_principal,
                 "term_months": term_months,
                 "interest_type": interest_type,
+                "repayment_frequency": repayment_frequency,
+                "disbursed_amount": summary["disbursed_amount"],
+                "taeg": summary["taeg"],
                 "renewal_mode": renewal_mode,
                 "rollover_amount": rollover_amount
             })
@@ -854,7 +1261,12 @@ class Api:
                 "loan_id": loan_id,
                 "rollover_amount": rollover_amount,
                 "total_principal": new_principal,
-                "cash_given_to_client": round(cash_given_to_client, 2),
+                "cash_given_to_client": round(max(
+                    0, summary["disbursed_amount"] - (rollover_amount if renewal_mode else 0)
+                ), 2),
+                "disbursed_amount": summary["disbursed_amount"],
+                "total_repayment": summary["total_repayment"],
+                "taeg": summary["taeg"],
                 "renewal_mode": renewal_mode
             }
         except ValueError as e:
@@ -873,8 +1285,10 @@ class Api:
         c = conn.cursor()
 
         c.execute("""
-            SELECT l.*, c.first_name, c.last_name
+            SELECT l.*, c.first_name, c.last_name,
+                   col.name AS collector_name, col.contact AS collector_contact
             FROM loans l JOIN clients c ON l.client_id = c.id
+            LEFT JOIN collectors col ON col.id = l.collector_id
             WHERE l.id = ?
         """, (loan_id,))
         loan = dict_from_row(c.fetchone())
@@ -884,8 +1298,13 @@ class Api:
 
         # Amortization schedule
         c.execute("""
-            SELECT * FROM amortization_schedule
-            WHERE loan_id = ? ORDER BY month_number
+            SELECT a.*,
+                   COALESCE(SUM(CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END), 0) AS allocated
+            FROM amortization_schedule a
+            LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+            LEFT JOIN payments p ON p.id = pa.payment_id
+            WHERE a.loan_id = ?
+            GROUP BY a.id ORDER BY a.month_number
         """, (loan_id,))
         loan['schedule'] = rows_to_list(c.fetchall())
 
@@ -897,9 +1316,12 @@ class Api:
         # Total paid
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL", (loan_id,))
         loan['total_paid'] = c.fetchone()[0]
-        loan['remaining'] = max(0, round(
-            loan['principal'] + loan['total_interest'] - loan['total_paid'], 2
-        ))
+        loan['remaining'] = max(0, round(_loan_repayment_total(loan) - loan['total_paid'], 2))
+
+        c.execute("SELECT * FROM guarantors WHERE loan_id = ? ORDER BY created_at", (loan_id,))
+        loan['guarantors'] = rows_to_list(c.fetchall())
+        c.execute("SELECT * FROM collateral WHERE loan_id = ? ORDER BY created_at", (loan_id,))
+        loan['collateral'] = rows_to_list(c.fetchall())
 
         conn.close()
         return loan
@@ -970,13 +1392,35 @@ class Api:
         conn = get_connection()
         try:
             c = conn.cursor()
-            c.execute("SELECT id FROM loans WHERE id = ?", (int(loan_id),))
-            if not c.fetchone():
+            c.execute("SELECT * FROM loans WHERE id = ?", (int(loan_id),))
+            loan = c.fetchone()
+            if not loan:
                 return {"success": False, "error": "Loan not found."}
-            c.execute(
-                "UPDATE loans SET status = ? WHERE id = ?",
-                (normalized_status, int(loan_id))
-            )
+            if normalized_status == "defaulted" and loan["status"] != "defaulted":
+                c.execute("""
+                    SELECT COALESCE(SUM(amount), 0) FROM payments
+                    WHERE loan_id = ? AND voided_at IS NULL
+                """, (int(loan_id),))
+                paid = float(c.fetchone()[0])
+                balance = max(0, round(_loan_repayment_total(loan) - paid, 2))
+                c.execute("""
+                    UPDATE loans
+                    SET status = 'defaulted', defaulted_at = ?, balance_at_default = ?
+                    WHERE id = ?
+                """, (datetime.now().isoformat(), balance, int(loan_id)))
+            else:
+                c.execute("""
+                    UPDATE loans
+                    SET status = ?,
+                        defaulted_at = CASE WHEN ? = 'defaulted' THEN defaulted_at ELSE NULL END,
+                        balance_at_default = CASE WHEN ? = 'defaulted' THEN balance_at_default ELSE 0 END
+                    WHERE id = ?
+                """, (normalized_status, normalized_status, normalized_status, int(loan_id)))
+            if normalized_status == "paid":
+                c.execute("""
+                    UPDATE collateral SET status = 'released'
+                    WHERE loan_id = ? AND status = 'pledged'
+                """, (int(loan_id),))
             self._audit_event(c, "loan_status_changed", "loan", loan_id, {
                 "status": normalized_status
             })
@@ -1052,7 +1496,9 @@ class Api:
                 remaining_principal += float(row["principal_portion"]) - principal_paid
                 remaining_interest += float(row["interest_portion"]) - interest_paid
 
-            installment_count = len(open_rows) + additional_months
+            frequency = str(loan.get("repayment_frequency") or "monthly")
+            added_installments = get_installment_count(additional_months, frequency)
+            installment_count = len(open_rows) + added_installments
             principal_parts = distribute_money(remaining_principal, installment_count)
             interest_parts = distribute_money(remaining_interest, installment_count)
 
@@ -1074,9 +1520,9 @@ class Api:
 
             last_due_date = datetime.strptime(schedule_rows[-1]["due_date"], "%Y-%m-%d")
             last_month_num = int(schedule_rows[-1]["month_number"])
-            for offset in range(additional_months):
+            for offset in range(added_installments):
                 part_index = len(open_rows) + offset
-                due_date = last_due_date + relativedelta(months=offset + 1)
+                due_date = advance_due_date(last_due_date, offset + 1, frequency)
                 c.execute("""
                     INSERT INTO amortization_schedule
                         (loan_id, month_number, due_date, principal_portion,
@@ -1111,9 +1557,10 @@ class Api:
             new_installment = round(principal_parts[0] + interest_parts[0], 2)
             c.execute("""
                 UPDATE loans
-                SET term_months = ?, monthly_payment = ?
+                SET term_months = ?, monthly_payment = ?, installment_amount = ?,
+                    installment_count = installment_count + ?
                 WHERE id = ?
-            """, (new_term, new_installment, loan_id))
+            """, (new_term, new_installment, new_installment, added_installments, loan_id))
 
             c.execute("""
                 SELECT ROUND(COALESCE(SUM(total_due), 0), 2)
@@ -1121,12 +1568,13 @@ class Api:
                 WHERE loan_id = ?
             """, (loan_id,))
             schedule_total = float(c.fetchone()[0])
-            contract_total = round(float(loan["principal"]) + float(loan["total_interest"]), 2)
+            contract_total = _loan_repayment_total(loan)
             if abs(schedule_total - contract_total) > 0.01:
                 raise ValueError("Extended schedule does not reconcile with the loan total.")
 
             self._audit_event(c, "loan_extended", "loan", loan_id, {
                 "additional_months": additional_months,
+                "added_installments": added_installments,
                 "new_term": new_term,
                 "new_installment": new_installment,
                 "contract_total": contract_total
@@ -1199,6 +1647,7 @@ class Api:
                 l.start_date,
                 l.status AS loan_status,
                 l.total_interest,
+                l.total_repayment,
                 c.id AS client_id,
                 c.first_name,
                 c.last_name,
@@ -1227,7 +1676,7 @@ class Api:
 
         # Enrich with computed fields
         for r in rows:
-            total_due = r['principal'] + r['total_interest']
+            total_due = _loan_repayment_total(r)
             remaining = max(0, total_due - r['total_paid_on_loan'])
             months_paid = int(r['installments_paid'] or 0)
             months_remaining = max(0, r['term_months'] - months_paid)
@@ -1325,7 +1774,7 @@ class Api:
 
             # Check the loan and outstanding balance before inserting.
             c.execute(
-                "SELECT principal, total_interest, status FROM loans WHERE id = ?",
+                "SELECT principal, total_interest, total_repayment, status FROM loans WHERE id = ?",
                 (loan_id,)
             )
             loan = c.fetchone()
@@ -1340,10 +1789,7 @@ class Api:
                 WHERE loan_id = ? AND voided_at IS NULL
             """, (loan_id,))
             already_paid = float(c.fetchone()[0])
-            outstanding = max(
-                0,
-                round(float(loan["principal"]) + float(loan["total_interest"]) - already_paid, 2)
-            )
+            outstanding = max(0, round(_loan_repayment_total(loan) - already_paid, 2))
             if outstanding <= 0:
                 raise ValueError("Loan is already fully paid.")
             if amount > outstanding + 0.005:
@@ -1498,6 +1944,310 @@ class Api:
             }
             for value in sorted(grouped.values(), key=lambda item: item["due_date"])
         ]
+
+    # ═══════════════════════════════════════════════════════════════
+    # GUARANTORS, COLLATERAL & COLLECTORS
+    # ═══════════════════════════════════════════════════════════════
+
+    def add_guarantor(self, loan_id, data):
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            loan_id = int(loan_id)
+            c.execute("SELECT client_id FROM loans WHERE id = ?", (loan_id,))
+            loan = c.fetchone()
+            if not loan:
+                raise ValueError("Loan not found.")
+            name = str((data or {}).get("name") or "").strip()
+            if not name:
+                raise ValueError("Guarantor name is required.")
+            now = datetime.now().isoformat()
+            c.execute("""
+                INSERT INTO guarantors
+                    (loan_id, client_id, name, contact, relation, id_number,
+                     address, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                loan_id, loan["client_id"], name,
+                str(data.get("contact") or "").strip(),
+                str(data.get("relation") or "").strip(),
+                str(data.get("id_number") or "").strip(),
+                str(data.get("address") or "").strip(),
+                str(data.get("notes") or "").strip(), now,
+            ))
+            guarantor_id = c.lastrowid
+            self._audit_event(c, "guarantor_added", "guarantor", guarantor_id, {"loan_id": loan_id})
+            conn.commit()
+            return {"success": True, "id": guarantor_id}
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
+
+    def update_guarantor(self, guarantor_id, data):
+        allowed = {"name", "contact", "relation", "id_number", "address", "notes"}
+        fields = []
+        values = []
+        for key in allowed:
+            if key in (data or {}):
+                value = str(data.get(key) or "").strip()
+                if key == "name" and not value:
+                    return {"success": False, "error": "Guarantor name is required."}
+                fields.append(f"{key} = ?")
+                values.append(value)
+        if not fields:
+            return {"success": False, "error": "No guarantor fields to update."}
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            values.append(int(guarantor_id))
+            c.execute(f"UPDATE guarantors SET {', '.join(fields)} WHERE id = ?", values)
+            if c.rowcount == 0:
+                raise ValueError("Guarantor not found.")
+            self._audit_event(c, "guarantor_updated", "guarantor", guarantor_id)
+            conn.commit()
+            return {"success": True}
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
+
+    def delete_guarantor(self, guarantor_id):
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("SELECT signature_path FROM guarantors WHERE id = ?", (int(guarantor_id),))
+            row = c.fetchone()
+            if not row:
+                return {"success": False, "error": "Guarantor not found."}
+            c.execute("DELETE FROM guarantors WHERE id = ?", (int(guarantor_id),))
+            self._audit_event(c, "guarantor_deleted", "guarantor", guarantor_id)
+            conn.commit()
+            signature_path = row["signature_path"] or ""
+            if signature_path and os.path.isfile(signature_path):
+                try:
+                    os.remove(signature_path)
+                except OSError:
+                    app_logger.warning("Could not delete guarantor signature: %s", signature_path)
+            return {"success": True}
+        finally:
+            conn.close()
+
+    def save_guarantor_signature(self, guarantor_id, base64_data):
+        try:
+            guarantor_id = int(guarantor_id)
+            conn = get_connection()
+            try:
+                row = conn.execute(
+                    "SELECT signature_path FROM guarantors WHERE id = ?", (guarantor_id,)
+                ).fetchone()
+            finally:
+                conn.close()
+            if not row:
+                raise ValueError("Guarantor not found.")
+            old_signature = row["signature_path"] or ""
+            raw = str(base64_data or "")
+            if not raw:
+                raise ValueError("Signature data is required.")
+            image = base64.b64decode(raw.split(",")[-1], validate=True)
+            if not image or len(image) > 5 * 1024 * 1024:
+                raise ValueError("Invalid or oversized signature image.")
+            signatures_dir = os.path.join(MEDIA_DIR, "signatures")
+            os.makedirs(signatures_dir, exist_ok=True)
+            filepath = os.path.join(signatures_dir, f"guarantor_{guarantor_id}_{int(datetime.now().timestamp())}.png")
+            with open(filepath, "wb") as handle:
+                handle.write(image)
+            conn = get_connection()
+            try:
+                c = conn.cursor()
+                c.execute("UPDATE guarantors SET signature_path = ? WHERE id = ?", (filepath, guarantor_id))
+                self._audit_event(c, "guarantor_signature_saved", "guarantor", guarantor_id)
+                conn.commit()
+            finally:
+                conn.close()
+            if old_signature and old_signature != filepath and os.path.isfile(old_signature):
+                try:
+                    os.remove(old_signature)
+                except OSError:
+                    app_logger.warning("Could not replace guarantor signature: %s", old_signature)
+            return {"success": True, "path": filepath}
+        except (TypeError, ValueError, binascii.Error) as e:
+            return {"success": False, "error": str(e)}
+
+    def add_collateral(self, loan_id, data):
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            loan_id = int(loan_id)
+            c.execute("SELECT client_id FROM loans WHERE id = ?", (loan_id,))
+            loan = c.fetchone()
+            if not loan:
+                raise ValueError("Loan not found.")
+            description = str((data or {}).get("description") or "").strip()
+            if not description:
+                raise ValueError("Collateral description is required.")
+            kind = str(data.get("collateral_type") or "other").strip().lower()
+            valid_types = {"vehicle", "real_estate", "equipment", "jewelry", "electronics", "other"}
+            if kind not in valid_types:
+                raise ValueError("Invalid collateral type.")
+            value = float(data.get("estimated_value") or 0)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError("Collateral value cannot be negative.")
+            now = datetime.now().isoformat()
+            c.execute("""
+                INSERT INTO collateral
+                    (loan_id, client_id, description, collateral_type, estimated_value,
+                     serial_number, plate_number, status, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pledged', ?, ?)
+            """, (
+                loan_id, loan["client_id"], description, kind, value,
+                str(data.get("serial_number") or "").strip(),
+                str(data.get("plate_number") or "").strip(),
+                str(data.get("notes") or "").strip(), now,
+            ))
+            collateral_id = c.lastrowid
+            self._audit_event(c, "collateral_added", "collateral", collateral_id, {"loan_id": loan_id})
+            conn.commit()
+            return {"success": True, "id": collateral_id}
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
+
+    def update_collateral(self, collateral_id, data):
+        allowed = {"description", "collateral_type", "estimated_value", "serial_number", "plate_number", "status", "notes"}
+        fields = []
+        values = []
+        valid_statuses = {"pledged", "released", "seized", "sold"}
+        valid_types = {"vehicle", "real_estate", "equipment", "jewelry", "electronics", "other"}
+        try:
+            for key in allowed:
+                if key not in (data or {}):
+                    continue
+                value = data.get(key)
+                if key == "estimated_value":
+                    value = float(value or 0)
+                    if not math.isfinite(value) or value < 0:
+                        raise ValueError("Collateral value cannot be negative.")
+                else:
+                    value = str(value or "").strip()
+                if key == "description" and not value:
+                    raise ValueError("Collateral description is required.")
+                if key == "status" and value not in valid_statuses:
+                    raise ValueError("Invalid collateral status.")
+                if key == "collateral_type" and value not in valid_types:
+                    raise ValueError("Invalid collateral type.")
+                fields.append(f"{key} = ?")
+                values.append(value)
+        except (TypeError, ValueError) as e:
+            return {"success": False, "error": str(e)}
+        if not fields:
+            return {"success": False, "error": "No collateral fields to update."}
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            values.append(int(collateral_id))
+            c.execute(f"UPDATE collateral SET {', '.join(fields)} WHERE id = ?", values)
+            if c.rowcount == 0:
+                raise ValueError("Collateral not found.")
+            self._audit_event(c, "collateral_updated", "collateral", collateral_id)
+            conn.commit()
+            return {"success": True}
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
+
+    def delete_collateral(self, collateral_id):
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("DELETE FROM collateral WHERE id = ?", (int(collateral_id),))
+            if c.rowcount == 0:
+                return {"success": False, "error": "Collateral not found."}
+            self._audit_event(c, "collateral_deleted", "collateral", collateral_id)
+            conn.commit()
+            return {"success": True}
+        finally:
+            conn.close()
+
+    def get_collectors(self, active_only=False):
+        conn = get_connection()
+        try:
+            query = "SELECT * FROM collectors"
+            params = ()
+            if active_only:
+                query += " WHERE active = 1"
+            query += " ORDER BY active DESC, name"
+            return rows_to_list(conn.execute(query, params).fetchall())
+        finally:
+            conn.close()
+
+    def add_collector(self, data):
+        name = str((data or {}).get("name") or "").strip()
+        if not name:
+            return {"success": False, "error": "Collector name is required."}
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("""
+                INSERT INTO collectors (name, contact, active, notes, created_at)
+                VALUES (?, ?, 1, ?, ?)
+            """, (name, str(data.get("contact") or "").strip(),
+                  str(data.get("notes") or "").strip(), datetime.now().isoformat()))
+            collector_id = c.lastrowid
+            self._audit_event(c, "collector_added", "collector", collector_id)
+            conn.commit()
+            return {"success": True, "id": collector_id}
+        finally:
+            conn.close()
+
+    def update_collector(self, collector_id, data):
+        name = str((data or {}).get("name") or "").strip()
+        if not name:
+            return {"success": False, "error": "Collector name is required."}
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("""
+                UPDATE collectors SET name = ?, contact = ?, active = ?, notes = ? WHERE id = ?
+            """, (name, str(data.get("contact") or "").strip(),
+                  int(bool(data.get("active", True))), str(data.get("notes") or "").strip(),
+                  int(collector_id)))
+            if c.rowcount == 0:
+                return {"success": False, "error": "Collector not found."}
+            self._audit_event(c, "collector_updated", "collector", collector_id)
+            conn.commit()
+            return {"success": True}
+        finally:
+            conn.close()
+
+    def assign_loan_collector(self, loan_id, collector_id=None):
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            loan_id = int(loan_id)
+            normalized = None
+            if collector_id not in (None, "", 0, "0"):
+                normalized = int(collector_id)
+                c.execute("SELECT id FROM collectors WHERE id = ? AND active = 1", (normalized,))
+                if not c.fetchone():
+                    raise ValueError("Collector not found or inactive.")
+            c.execute("UPDATE loans SET collector_id = ? WHERE id = ?", (normalized, loan_id))
+            if c.rowcount == 0:
+                raise ValueError("Loan not found.")
+            self._audit_event(c, "loan_collector_assigned", "loan", loan_id, {"collector_id": normalized})
+            conn.commit()
+            return {"success": True, "collector_id": normalized}
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
 
     # ═══════════════════════════════════════════════════════════════
     # DOCUMENTS & MEDIA
@@ -1686,6 +2436,88 @@ class Api:
     # PENALTIES
     # ═══════════════════════════════════════════════════════════════
 
+    def apply_auto_penalties(self):
+        """Create at most one automatic penalty per overdue installment."""
+        conn = get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("""
+                SELECT key, value FROM settings
+                WHERE key IN ('auto_penalty_enabled', 'auto_penalty_rate',
+                              'auto_penalty_grace_days', 'auto_penalty_type',
+                              'auto_penalty_max_pct')
+            """)
+            settings = {row["key"]: row["value"] for row in c.fetchall()}
+            if str(settings.get("auto_penalty_enabled", "false")).lower() != "true":
+                return {"success": True, "created": 0, "enabled": False}
+            rate = float(settings.get("auto_penalty_rate", 0) or 0)
+            grace_days = max(0, int(settings.get("auto_penalty_grace_days", 3) or 0))
+            penalty_type = str(settings.get("auto_penalty_type", "fixed") or "fixed").lower()
+            max_pct = max(0.0, float(settings.get("auto_penalty_max_pct", 0) or 0))
+            if rate <= 0 or penalty_type not in {"fixed", "percentage"}:
+                return {"success": True, "created": 0, "enabled": True}
+
+            today = datetime.now().date()
+            cutoff = (today - relativedelta(days=grace_days)).strftime("%Y-%m-%d")
+            c.execute("""
+                SELECT a.id AS schedule_id, a.loan_id, l.client_id, l.principal,
+                       a.due_date, a.total_due,
+                       COALESCE(SUM(CASE WHEN p.voided_at IS NULL THEN pa.amount ELSE 0 END), 0) AS allocated
+                FROM amortization_schedule a
+                JOIN loans l ON l.id = a.loan_id
+                LEFT JOIN payment_allocations pa ON pa.schedule_id = a.id
+                LEFT JOIN payments p ON p.id = pa.payment_id
+                LEFT JOIN penalties existing
+                       ON existing.schedule_id = a.id AND existing.auto_generated = 1
+                WHERE l.status IN ('active', 'defaulted')
+                  AND a.due_date < ?
+                  AND existing.id IS NULL
+                GROUP BY a.id
+                HAVING allocated < a.total_due - 0.005
+                ORDER BY a.due_date
+            """, (cutoff,))
+            created = 0
+            now = datetime.now().isoformat()
+            for row in c.fetchall():
+                outstanding = max(0.0, float(row["total_due"]) - float(row["allocated"]))
+                amount = rate if penalty_type == "fixed" else outstanding * rate / 100
+                amount = round(amount, 2)
+                if max_pct > 0:
+                    c.execute("""
+                        SELECT COALESCE(SUM(amount), 0) FROM penalties
+                        WHERE loan_id = ? AND auto_generated = 1 AND status != 'waived'
+                    """, (row["loan_id"],))
+                    already_penalized = float(c.fetchone()[0])
+                    cap = float(row["principal"]) * max_pct / 100
+                    amount = round(min(amount, max(0, cap - already_penalized)), 2)
+                if amount <= 0:
+                    continue
+                days_overdue = max(0, (today - datetime.strptime(row["due_date"], "%Y-%m-%d").date()).days)
+                c.execute("""
+                    INSERT OR IGNORE INTO penalties
+                        (loan_id, client_id, amount, reason, notes, status,
+                         schedule_id, auto_generated, days_overdue_at_creation,
+                         penalty_date, created_at)
+                    VALUES (?, ?, ?, 'late_payment', ?, 'pending', ?, 1, ?, ?, ?)
+                """, (
+                    row["loan_id"], row["client_id"], amount,
+                    f"Automatic late fee after {days_overdue} days overdue",
+                    row["schedule_id"], days_overdue, today.isoformat(), now,
+                ))
+                if c.rowcount:
+                    created += 1
+                    self._audit_event(c, "auto_penalty_added", "schedule", row["schedule_id"], {
+                        "loan_id": row["loan_id"], "amount": amount, "days_overdue": days_overdue,
+                    })
+            conn.commit()
+            return {"success": True, "created": created, "enabled": True}
+        except (TypeError, ValueError) as e:
+            conn.rollback()
+            app_logger.warning("Automatic penalties skipped: %s", e)
+            return {"success": False, "error": str(e)}
+        finally:
+            conn.close()
+
     def add_penalty(self, loan_id, client_id, amount, reason, notes="", penalty_date=None):
         """Add a penalty (late payment, missed payment, etc.) to a loan."""
         conn = get_connection()
@@ -1777,13 +2609,13 @@ class Api:
         """
         conn = get_connection()
         c = conn.cursor()
-        c.execute("SELECT principal, total_interest, monthly_payment, term_months FROM loans WHERE id = ?",
+        c.execute("SELECT principal, total_interest, total_repayment, monthly_payment, term_months FROM loans WHERE id = ?",
                   (int(loan_id),))
         loan = c.fetchone()
         if not loan:
             conn.close()
             return None
-        total_due = loan['principal'] + loan['total_interest']
+        total_due = _loan_repayment_total(loan)
         monthly_payment = loan['monthly_payment'] or 0
 
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = ? AND voided_at IS NULL",
@@ -1809,7 +2641,7 @@ class Api:
         conn = get_connection()
         c = conn.cursor()
         c.execute("""
-            SELECT l.id, l.principal, l.total_interest, l.status,
+            SELECT l.id, l.principal, l.total_interest, l.total_repayment, l.status,
                    (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE loan_id = l.id AND voided_at IS NULL) as total_paid
             FROM loans l WHERE l.client_id = ? AND l.status = 'active'
             ORDER BY l.created_at DESC LIMIT 1
@@ -1817,7 +2649,7 @@ class Api:
         loan = dict_from_row(c.fetchone())
         conn.close()
         if loan:
-            loan['remaining'] = round(loan['principal'] + loan['total_interest'] - loan['total_paid'], 2)
+            loan['remaining'] = round(_loan_repayment_total(loan) - loan['total_paid'], 2)
         return loan
 
     def calculate_dti(self, monthly_income, monthly_payment):
@@ -1989,7 +2821,7 @@ class Api:
             if result_path:
                 b64 = self._pdf_to_b64_datauri(result_path)
                 return {"success": True, "path": result_path, "filename": filename, "b64": b64}
-            return {"success": False, "error": "Prêt introuvable"}
+            return {"success": False, "error": "Loan not found"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -2005,7 +2837,7 @@ class Api:
             if result_path:
                 b64 = self._pdf_to_b64_datauri(result_path)
                 return {"success": True, "path": result_path, "filename": filename, "b64": b64}
-            return {"success": False, "error": "Prêt introuvable"}
+            return {"success": False, "error": "Loan not found"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -2021,7 +2853,7 @@ class Api:
             if result_path:
                 b64 = self._pdf_to_b64_datauri(result_path)
                 return {"success": True, "path": result_path, "filename": filename, "b64": b64}
-            return {"success": False, "error": "Paiement introuvable"}
+            return {"success": False, "error": "Payment not found"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -2031,7 +2863,7 @@ class Api:
             if os.path.exists(path):
                 _open_native(path, app='Preview' if sys.platform == "darwin" else None)
                 return {"success": True}
-            return {"success": False, "error": "Fichier introuvable"}
+            return {"success": False, "error": "File not found"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -2130,16 +2962,31 @@ class Api:
 
     def save_settings(self, data):
         """Save multiple settings."""
-        conn = get_connection()
-        c = conn.cursor()
-        for key, value in data.items():
-            if key == "currency":
-                value = normalize_currency(value)
-            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                      (key, str(value)))
-        conn.commit()
-        conn.close()
-        return True
+        try:
+            normalized = dict(data or {})
+            if "currency" in normalized:
+                normalized["currency"] = normalize_currency(normalized["currency"])
+            if "auto_penalty_type" in normalized and normalized["auto_penalty_type"] not in {"fixed", "percentage"}:
+                raise ValueError("Invalid automatic penalty type.")
+            for key in ("auto_penalty_rate", "auto_penalty_max_pct"):
+                if key in normalized and float(normalized[key] or 0) < 0:
+                    raise ValueError("Automatic penalty values cannot be negative.")
+            if "auto_penalty_grace_days" in normalized:
+                grace = int(normalized["auto_penalty_grace_days"] or 0)
+                if grace < 0 or grace > 365:
+                    raise ValueError("Grace period must be between 0 and 365 days.")
+            conn = get_connection()
+            try:
+                c = conn.cursor()
+                for key, value in normalized.items():
+                    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                              (key, str(value)))
+                conn.commit()
+            finally:
+                conn.close()
+            return True
+        except (TypeError, ValueError) as e:
+            return {"success": False, "error": str(e)}
 
     def save_logo(self, base64_data):
         """Save company logo image."""
@@ -2172,7 +3019,7 @@ class Api:
     def get_app_info(self):
         """Get application info."""
         return {
-            "version": "1.3.2",
+            "version": "1.5.0",
             "name": APP_NAME,
             "demo_only": self._is_restricted_demo(),
             "demo_edition": self._demo_only,
@@ -2248,8 +3095,12 @@ class Api:
             result = db_switch_profile(profile_id)
             if result:
                 init_database()
+                self._reset_startup_auth_session()
                 app_logger.info("Switched to profile: %s", profile_id)
-                return {"success": True}
+                return {
+                    "success": True,
+                    "auth_required": self._startup_login_required,
+                }
             return {"success": False, "error": "Profile not found."}
         except Exception as e:
             app_logger.log_exception("switch_active_profile", e)
@@ -2306,8 +3157,117 @@ class Api:
     # PASSWORD PROTECTION
     # ═══════════════════════════════════════════════════════════════
 
-    def set_profile_password(self, password):
-        """Set a password for protecting dangerous actions."""
+    def get_startup_auth_state(self):
+        """Return only the non-sensitive state needed by the opening screen."""
+        try:
+            now = time.monotonic()
+            if self._login_blocked_until and now >= self._login_blocked_until:
+                self._login_blocked_until = 0.0
+                self._login_failures = 0
+            security = self._read_startup_security()
+            profile = db_get_active_profile() or {}
+            login_enabled = bool(security["login_enabled"])
+            self._startup_login_required = login_enabled
+            if not login_enabled:
+                self._session_authenticated = True
+            return {
+                "success": True,
+                "required": login_enabled,
+                "login_enabled": login_enabled,
+                "authenticated": bool(self._session_authenticated),
+                "password_configured": bool(security["password_ready"]),
+                "profile_name": profile.get("name", "Main Profile"),
+                "company_name": security["company_name"],
+                "retry_after": max(0, int(math.ceil(self._login_blocked_until - now))),
+            }
+        except Exception as e:
+            app_logger.log_exception("get_startup_auth_state", e)
+            return {
+                "success": False,
+                "required": False,
+                "authenticated": True,
+                "error": "Could not read the startup security settings.",
+            }
+
+    def authenticate_startup(self, password):
+        """Unlock the active profile for this application session."""
+        try:
+            security = self._read_startup_security()
+            if not security["login_enabled"]:
+                self._startup_login_required = False
+                self._session_authenticated = True
+                return {"success": True, "authenticated": True}
+
+            now = time.monotonic()
+            retry_after = int(math.ceil(self._login_blocked_until - now))
+            if retry_after > 0:
+                return {
+                    "success": False,
+                    "authenticated": False,
+                    "retry_after": retry_after,
+                    "error": f"Too many attempts. Try again in {retry_after} seconds.",
+                }
+
+            valid, needs_upgrade = _verify_profile_password(
+                password,
+                security["password_hash"],
+            )
+            if valid:
+                if needs_upgrade:
+                    conn = get_connection()
+                    try:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_password', ?)",
+                            (_hash_profile_password(password),),
+                        )
+                        conn.commit()
+                    finally:
+                        conn.close()
+                self._session_authenticated = True
+                self._login_failures = 0
+                self._login_blocked_until = 0.0
+                app_logger.info("Startup profile unlocked successfully.")
+                return {"success": True, "authenticated": True}
+
+            self._login_failures += 1
+            attempts_remaining = max(0, 5 - self._login_failures)
+            response = {
+                "success": False,
+                "authenticated": False,
+                "attempts_remaining": attempts_remaining,
+                "error": "Incorrect password.",
+            }
+            if self._login_failures >= 5:
+                self._login_failures = 0
+                self._login_blocked_until = now + 30
+                response.update({
+                    "retry_after": 30,
+                    "error": "Too many attempts. Try again in 30 seconds.",
+                })
+            app_logger.warning("Failed startup unlock attempt.")
+            return response
+        except Exception as e:
+            app_logger.log_exception("authenticate_startup", e)
+            return {
+                "success": False,
+                "authenticated": False,
+                "error": "Could not verify the password.",
+            }
+
+    def lock_session(self):
+        """Return to the opening screen without closing the application."""
+        security = self._read_startup_security()
+        if not security["login_enabled"]:
+            return {"success": False, "error": "Startup login is not enabled."}
+        self._startup_login_required = True
+        self._session_authenticated = False
+        self._login_failures = 0
+        self._login_blocked_until = 0.0
+        app_logger.info("Application session locked.")
+        return {"success": True, "locked": True}
+
+    def set_profile_password(self, password, enable_startup_login=None):
+        """Set the profile password and optionally enable startup login."""
         try:
             password = str(password or "")
             if len(password) < 8:
@@ -2317,10 +3277,21 @@ class Api:
             c = conn.cursor()
             c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_password', ?)", (encoded_hash,))
             c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('password_enabled', 'true')")
+            if enable_startup_login is not None:
+                c.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES ('startup_login_enabled', ?)",
+                    ('true' if bool(enable_startup_login) else 'false',),
+                )
             conn.commit()
             conn.close()
+            security = self._read_startup_security()
+            self._startup_login_required = bool(security["login_enabled"])
+            self._session_authenticated = True
             app_logger.info("Profile password has been set.")
-            return {"success": True}
+            return {
+                "success": True,
+                "startup_login_enabled": self._startup_login_required,
+            }
         except Exception as e:
             app_logger.log_exception("set_profile_password", e)
             return {"success": False, "error": str(e)}
@@ -2356,8 +3327,11 @@ class Api:
             c = conn.cursor()
             c.execute("DELETE FROM settings WHERE key = 'profile_password'")
             c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('password_enabled', 'false')")
+            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('startup_login_enabled', 'false')")
             conn.commit()
             conn.close()
+            self._startup_login_required = False
+            self._session_authenticated = True
             app_logger.info("Profile password has been removed.")
             return {"success": True}
         except Exception as e:
@@ -2376,6 +3350,34 @@ class Api:
         except Exception:
             return False
 
+    def set_startup_login_enabled(self, enabled):
+        """Enable or disable the opening login screen for the active profile."""
+        try:
+            enabled = bool(enabled)
+            security = self._read_startup_security()
+            if enabled and not security["password_ready"]:
+                return {
+                    "success": False,
+                    "error": "Set a profile password before enabling startup login.",
+                }
+            conn = get_connection()
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES ('startup_login_enabled', ?)",
+                    ('true' if enabled else 'false',),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            self._startup_login_required = enabled
+            # Changing the preference never locks the current working session.
+            self._session_authenticated = True
+            app_logger.info("Startup login set to: %s", enabled)
+            return {"success": True, "enabled": enabled}
+        except Exception as e:
+            app_logger.log_exception("set_startup_login_enabled", e)
+            return {"success": False, "error": str(e)}
+
     # ═══════════════════════════════════════════════════════════════
     # APP LIFECYCLE
     # ═══════════════════════════════════════════════════════════════
@@ -2393,6 +3395,7 @@ class Api:
         a nominal monthly installment is incorrect for declining schedules,
         partial payments, and loans whose remaining term was extended.
         """
+        self.apply_auto_penalties()
         conn = get_connection()
         try:
             c = conn.cursor()
@@ -2488,7 +3491,7 @@ class Api:
             # Format phone number — remove spaces/dashes, ensure it's clean
             clean_phone = ''.join(filter(lambda x: x.isdigit() or x == '+', phone_number))
             if not clean_phone:
-                return {"success": False, "error": "Numéro de téléphone invalide"}
+                return {"success": False, "error": "Invalid phone number"}
 
             # Escape double-quotes and backslashes in the message for AppleScript
             safe_message = message.replace('\\', '\\\\').replace('"', '\\"')

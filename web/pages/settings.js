@@ -13,6 +13,8 @@ const SettingsPage = {
         const backups = restrictedDemo ? [] : await App.api('get_backups_list');
         const driveSetup = restrictedDemo ? false : await App.api('is_drive_setup');
         const profiles = restrictedDemo ? [] : await App.api('get_profiles');
+        const collectors = restrictedDemo ? [] : await App.api('get_collectors', false);
+        this.collectors = collectors;
         const activeProfile = profiles.find(p => p.is_active) || profiles[0] || {};
 
         content.innerHTML = `
@@ -90,8 +92,8 @@ const SettingsPage = {
                                         <i data-lucide="lock" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <div>
-                                        <p class="text-sm font-medium" style="color:var(--text-primary)">Password Protection</p>
-                                        <p class="text-xs" style="color:var(--text-tertiary)">Require password for reset, delete & switch</p>
+                                        <p class="text-sm font-medium" style="color:var(--text-primary)">Profile Password</p>
+                                        <p class="text-xs" style="color:var(--text-tertiary)">Protect reset, deletion and profile switching</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">
@@ -104,6 +106,24 @@ const SettingsPage = {
                                         <div class="apple-toggle-track"></div>
                                     </label>
                                 </div>
+                            </div>
+                            <div class="flex items-center justify-between px-4 py-3"
+                                 style="background:var(--surface-0); border-top:0.5px solid var(--surface-2);">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                                         style="background:#1769aa;">
+                                        <i data-lucide="log-in" class="w-4 h-4 text-white"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium" style="color:var(--text-primary)">Login at Startup</p>
+                                        <p class="text-xs" style="color:var(--text-tertiary)">Show the secure opening screen when this profile starts</p>
+                                    </div>
+                                </div>
+                                <label class="apple-toggle" title="Requires a profile password">
+                                    <input type="checkbox" id="startup-login-toggle"
+                                           onchange="SettingsPage.toggleStartupLogin(this.checked)">
+                                    <div class="apple-toggle-track"></div>
+                                </label>
                             </div>
                         </div>
 
@@ -191,7 +211,7 @@ const SettingsPage = {
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Language</label>
+                                <label class="text-sm font-medium text-gray-600 dark:text-slate-400 mb-1 block">Donation Reminder Language</label>
                                 <select name="language" class="input select">
                                     ${[['en','English'],['fr','Français'],['es','Español'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['nl','Nederlands'],['fil','Filipino'],['zh','中文'],['ja','日本語'],['ko','한국어'],['ar','العربية'],['hi','हिन्दी'],['th','ไทย'],['ms','Bahasa Melayu'],['id','Bahasa Indonesia'],['vi','Tiếng Việt']].map(([code, label]) =>
                                         `<option value="${code}" ${(settings.language || 'en') === code ? 'selected' : ''}>${label}</option>`
@@ -295,9 +315,27 @@ const SettingsPage = {
                             </div>
                         </div>
 
+                        <div class="p-4 rounded-xl border border-dashed border-red-200 dark:border-red-800/40 bg-red-50/40 dark:bg-red-900/10">
+                            <div class="flex items-center justify-between mb-3">
+                                <div><p class="text-sm font-semibold">Automatic Late Penalties</p><p class="text-xs text-gray-400">One idempotent penalty per overdue installment after the grace period.</p></div>
+                                <label class="apple-toggle"><input type="checkbox" name="auto_penalty_enabled" ${settings.auto_penalty_enabled === 'true' ? 'checked' : ''}><div class="apple-toggle-track"></div></label>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div><label class="text-xs mb-1 block">Calculation</label><select name="auto_penalty_type" class="input select"><option value="fixed" ${settings.auto_penalty_type !== 'percentage' ? 'selected' : ''}>Fixed amount</option><option value="percentage" ${settings.auto_penalty_type === 'percentage' ? 'selected' : ''}>% of unpaid installment</option></select></div>
+                                <div><label class="text-xs mb-1 block">Rate / Amount</label><input name="auto_penalty_rate" type="number" min="0" step="0.01" class="input" value="${settings.auto_penalty_rate || '0'}"></div>
+                                <div><label class="text-xs mb-1 block">Grace Days</label><input name="auto_penalty_grace_days" type="number" min="0" max="365" class="input" value="${settings.auto_penalty_grace_days || '3'}"></div>
+                                <div><label class="text-xs mb-1 block">Max % of Principal</label><input name="auto_penalty_max_pct" type="number" min="0" step="0.01" class="input" value="${settings.auto_penalty_max_pct || '0'}" title="0 means no cap"></div>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary btn-sm"><i data-lucide="save" class="w-4 h-4"></i> Save Defaults</button>
                     </form>
                 </div>
+
+                ${!restrictedDemo ? `<div class="glass-card p-6">
+                    <div class="flex items-center justify-between mb-4"><div><h3 class="text-lg font-bold flex items-center gap-2"><i data-lucide="route" class="w-5 h-5 text-blue-500"></i> Collectors</h3><p class="text-xs text-gray-400">Assign loans and compare collection performance.</p></div><button onclick="SettingsPage.showCollectorForm()" class="btn btn-primary btn-sm"><i data-lucide="plus" class="w-4 h-4"></i> Add</button></div>
+                    <div class="space-y-2">${collectors.length ? collectors.map(c => `<div class="flex items-center justify-between p-3 rounded-xl" style="background:var(--surface-2);"><div><p class="font-semibold text-sm">${c.name}${!c.active ? ' <span class="text-xs text-gray-400">(inactive)</span>' : ''}</p><p class="text-xs text-gray-400">${c.contact || 'No contact'}</p></div><button onclick="SettingsPage.showCollectorFormById(${c.id})" class="btn btn-ghost btn-sm"><i data-lucide="edit-2" class="w-4 h-4"></i></button></div>`).join('') : '<p class="text-sm text-center text-gray-400 py-4">No collectors configured</p>'}</div>
+                </div>` : ''}
 
                 <!-- SMS Configuration -->
                 <div class="glass-card p-6">
@@ -593,7 +631,7 @@ const SettingsPage = {
                             </button>
                             ${restrictedDemo ? `<button onclick="SettingsPage.leaveDemo()"
                                 class="btn btn-sm btn-primary">
-                                Quitter la démo
+                                Leave Demo
                             </button>` : `<button onclick="SettingsPage.toggleDemo(false)"
                                 class="btn btn-sm btn-ghost">
                                 Disable Demo
@@ -615,12 +653,20 @@ const SettingsPage = {
         `;
         lucide.createIcons();
 
-        // Init password toggle state
+        // Init password and startup-login state
         if (!restrictedDemo) {
-            App.api('is_password_protected').then(enabled => {
+            Promise.all([
+                App.api('is_password_protected'),
+                App.api('get_startup_auth_state'),
+            ]).then(([enabled, authState]) => {
                 const toggle = document.getElementById('password-toggle');
+                const startupToggle = document.getElementById('startup-login-toggle');
                 const configBtn = document.getElementById('password-config-btn');
                 if (toggle) toggle.checked = enabled;
+                if (startupToggle) {
+                    startupToggle.checked = Boolean(authState?.login_enabled);
+                    startupToggle.disabled = !enabled;
+                }
                 if (configBtn) configBtn.style.display = enabled ? '' : 'none';
             });
         }
@@ -652,7 +698,12 @@ const SettingsPage = {
                 commission_amount: form.commission_amount.value,
                 referral_bonus_enabled: String(form.referral_bonus_enabled?.checked || false),
                 referral_bonus_amount: form.referral_bonus_amount?.value || '500',
-                referral_bonus_trigger: form.referral_bonus_trigger?.value || 'on_loan_creation'
+                referral_bonus_trigger: form.referral_bonus_trigger?.value || 'on_loan_creation',
+                auto_penalty_enabled: String(form.auto_penalty_enabled?.checked || false),
+                auto_penalty_type: form.auto_penalty_type?.value || 'fixed',
+                auto_penalty_rate: form.auto_penalty_rate?.value || '0',
+                auto_penalty_grace_days: form.auto_penalty_grace_days?.value || '3',
+                auto_penalty_max_pct: form.auto_penalty_max_pct?.value || '0'
             });
         });
     },
@@ -761,9 +812,37 @@ const SettingsPage = {
             default_interest_type: form.default_interest_type.value,
             commission_type: form.commission_type.value,
             commission_rate: form.commission_rate.value,
-            commission_amount: form.commission_amount.value
+            commission_amount: form.commission_amount.value,
+            auto_penalty_enabled: String(form.auto_penalty_enabled?.checked || false),
+            auto_penalty_type: form.auto_penalty_type?.value || 'fixed',
+            auto_penalty_rate: form.auto_penalty_rate?.value || '0',
+            auto_penalty_grace_days: form.auto_penalty_grace_days?.value || '3',
+            auto_penalty_max_pct: form.auto_penalty_max_pct?.value || '0'
         });
         UI.toast('Loan defaults saved!', 'success');
+    },
+
+    showCollectorFormById(id) {
+        this.showCollectorForm((this.collectors || []).find(c => c.id === id) || null);
+    },
+
+    showCollectorForm(collector = null) {
+        UI.showModal(collector ? 'Edit Collector' : 'Add Collector', `
+            <form onsubmit="SettingsPage.saveCollector(event, ${collector?.id || 'null'})" class="space-y-4">
+                <div><label class="text-sm font-medium mb-1 block">Name *</label><input name="name" class="input" required value="${collector?.name || ''}"></div>
+                <div><label class="text-sm font-medium mb-1 block">Contact</label><input name="contact" class="input" value="${collector?.contact || ''}"></div>
+                <div><label class="text-sm font-medium mb-1 block">Notes</label><textarea name="notes" class="input" rows="2">${collector?.notes || ''}</textarea></div>
+                ${collector ? `<label class="flex items-center gap-2 text-sm"><input name="active" type="checkbox" ${collector.active ? 'checked' : ''}> Active collector</label>` : ''}
+                <div class="flex justify-end gap-2"><button type="button" onclick="UI.closeModal()" class="btn btn-ghost">Cancel</button><button class="btn btn-primary">Save Collector</button></div>
+            </form>`, { width: 'max-w-md' });
+    },
+
+    async saveCollector(event, id) {
+        event.preventDefault(); const form = event.target;
+        const data = { name: form.name.value, contact: form.contact.value, notes: form.notes.value, active: form.active ? form.active.checked : true };
+        const result = id ? await App.api('update_collector', id, data) : await App.api('add_collector', data);
+        if (!result?.success) return UI.toast(result?.error || 'Could not save collector.', 'error');
+        UI.closeModal(); UI.toast('Collector saved.', 'success'); await this.render();
     },
 
     async exportExcel() {
@@ -783,6 +862,9 @@ const SettingsPage = {
             { id: 'payments', label: 'Payments', icon: 'receipt', desc: 'All payment transactions' },
             { id: 'amortization', label: 'Amortization Schedule', icon: 'calendar-range', desc: 'Monthly schedule for every loan' },
             { id: 'penalties', label: 'Penalties', icon: 'alert-circle', desc: 'All penalties (pending + resolved)' },
+            { id: 'guarantors', label: 'Guarantors', icon: 'users-round', desc: 'Guarantors, co-makers and signatures' },
+            { id: 'collateral', label: 'Collateral', icon: 'gem', desc: 'Pledged assets and their status' },
+            { id: 'collectors', label: 'Collectors', icon: 'route', desc: 'Collector directory and assignments' },
             { id: 'commissions', label: 'Commissions', icon: 'gift', desc: 'Referral commission records' },
         ];
 
@@ -1266,9 +1348,7 @@ const SettingsPage = {
                 const result = await App.api('switch_active_profile', profileId);
                 if (result.success) {
                     SoundEngine.success();
-                    UI.toast(`Switched to "${target.name}" ✓`, 'success');
-                    await App.refreshAlertsBadge();
-                    App.navigate('dashboard');
+                    window.location.reload();
                 } else {
                     UI.toast('Error: ' + (result.error || 'Unknown'), 'error');
                 }
@@ -1456,17 +1536,61 @@ const SettingsPage = {
             }
             await App.api('remove_profile_password');
             const configBtn = document.getElementById('password-config-btn');
+            const startupToggle = document.getElementById('startup-login-toggle');
             if (configBtn) configBtn.style.display = 'none';
+            if (startupToggle) {
+                startupToggle.checked = false;
+                startupToggle.disabled = true;
+            }
+            App.startupLoginEnabled = false;
+            document.getElementById('lock-session-btn')?.classList.add('hidden');
             UI.toast('Password protection disabled.', 'info');
             SoundEngine.toggle();
         }
     },
 
-    showPasswordSetup() {
+    async toggleStartupLogin(enabled) {
+        const toggle = document.getElementById('startup-login-toggle');
+        const passwordEnabled = await App.api('is_password_protected');
+
+        if (enabled && !passwordEnabled) {
+            this._enableStartupAfterPassword = true;
+            this.showPasswordSetup(true);
+            return;
+        }
+
+        const allowed = await this._requirePassword(
+            enabled ? 'enable login at startup' : 'disable login at startup'
+        );
+        if (!allowed) {
+            if (toggle) toggle.checked = !enabled;
+            return;
+        }
+
+        const result = await App.api('set_startup_login_enabled', enabled);
+        if (!result?.success) {
+            if (toggle) toggle.checked = !enabled;
+            UI.toast(result?.error || 'Could not update startup login.', 'error');
+            return;
+        }
+
+        App.startupLoginEnabled = enabled;
+        document.getElementById('lock-session-btn')?.classList.toggle('hidden', !enabled);
+        SoundEngine.toggle();
+        UI.toast(
+            enabled ? 'Login screen enabled for the next startup.' : 'Login screen disabled.',
+            enabled ? 'success' : 'info'
+        );
+    },
+
+    showPasswordSetup(enableStartupLogin = false) {
+        this._enableStartupAfterPassword = Boolean(enableStartupLogin);
         UI.showModal('Set Password', `
             <div class="space-y-4">
                 <p class="text-sm" style="color:var(--text-secondary)">
-                    This password will be required for dangerous actions: reset data, delete profile, switch profile.
+                    This password protects sensitive profile actions${enableStartupLogin
+                        ? ' and will unlock the application opening screen.'
+                        : '. You can also enable login at startup separately.'}
                 </p>
                 <div>
                     <label class="text-xs font-medium mb-1 block" style="color:var(--text-secondary)">New Password</label>
@@ -1493,9 +1617,12 @@ const SettingsPage = {
         // If we were trying to enable and user cancels, uncheck toggle
         App.api('is_password_protected').then(enabled => {
             const toggle = document.getElementById('password-toggle');
+            const startupToggle = document.getElementById('startup-login-toggle');
             if (toggle) toggle.checked = enabled;
+            if (startupToggle && this._enableStartupAfterPassword) startupToggle.checked = false;
             const configBtn = document.getElementById('password-config-btn');
             if (configBtn) configBtn.style.display = enabled ? '' : 'none';
+            this._enableStartupAfterPassword = false;
         });
     },
 
@@ -1510,15 +1637,37 @@ const SettingsPage = {
             UI.toast('Passwords do not match.', 'warning');
             return;
         }
+        const enableStartupLogin = Boolean(this._enableStartupAfterPassword);
+        const modalContainer = document.getElementById('modal-container');
+        if (modalContainer) modalContainer._onClose = null;
         UI.closeModal();
-        const result = await App.api('set_profile_password', pw);
+        this._enableStartupAfterPassword = false;
+        const result = await App.api(
+            'set_profile_password',
+            pw,
+            enableStartupLogin ? true : null
+        );
         if (result.success) {
             const toggle = document.getElementById('password-toggle');
+            const startupToggle = document.getElementById('startup-login-toggle');
             if (toggle) toggle.checked = true;
+            if (startupToggle) {
+                startupToggle.disabled = false;
+                if (enableStartupLogin) startupToggle.checked = true;
+            }
             const configBtn = document.getElementById('password-config-btn');
             if (configBtn) configBtn.style.display = '';
+            if (enableStartupLogin) {
+                App.startupLoginEnabled = true;
+                document.getElementById('lock-session-btn')?.classList.remove('hidden');
+            }
             SoundEngine.success();
-            UI.toast('Password protection enabled.', 'success');
+            UI.toast(
+                enableStartupLogin
+                    ? 'Password and startup login enabled.'
+                    : 'Password protection enabled.',
+                'success'
+            );
         } else {
             UI.toast('Error: ' + (result.error || 'Unknown'), 'error');
         }

@@ -111,6 +111,10 @@ def generate_contract_pdf(loan_id, output_path=None):
         (loan_id,)
     )
     schedule = rows_to_list(cursor.fetchall())
+    cursor.execute("SELECT * FROM guarantors WHERE loan_id = ? ORDER BY created_at", (loan_id,))
+    guarantors = rows_to_list(cursor.fetchall())
+    cursor.execute("SELECT * FROM collateral WHERE loan_id = ? ORDER BY created_at", (loan_id,))
+    collateral_items = rows_to_list(cursor.fetchall())
     conn.close()
 
     # Build PDF
@@ -164,6 +168,8 @@ def generate_contract_pdf(loan_id, output_path=None):
     client_data = [
         ["Client ID:", client['id'], "Name:", f"{client['first_name']} {client['last_name']}"],
         ["Address:", client['address'], "Contact:", client['contact']],
+        ["ID Number:", client.get('id_number') or "—", "Date of Birth:", client.get('date_of_birth') or "—"],
+        ["Employer:", client.get('employer') or "—", "Occupation:", client.get('occupation') or "—"],
     ]
     client_table = Table(client_data, colWidths=[70, 160, 70, 160])
     client_table.setStyle(TableStyle([
@@ -185,12 +191,16 @@ def generate_contract_pdf(loan_id, output_path=None):
     term_rate = float(loan['interest_rate'])
     original_term = int(loan.get('original_term_months') or loan['term_months'])
     monthly_rate = term_rate / max(original_term, 1)
-    total_repayment = float(loan['principal']) + float(loan['total_interest'])
+    total_repayment = float(loan.get('total_repayment') or 0) or (float(loan['principal']) + float(loan['total_interest']))
+    frequency = str(loan.get('repayment_frequency') or 'monthly').replace('biweekly', 'Every 2 weeks').title()
     loan_data = [
         ["Principal Amount:", format_money(loan['principal'], company['currency']), "Monthly Rate:", f"{monthly_rate:.2f}%"],
         ["Interest Type:", interest_label, "Term Rate:", f"{term_rate:.2f}%"],
-        ["Term:", f"{loan['term_months']} months", "Monthly Payment:", format_money(loan['monthly_payment'], company['currency'])],
+        ["Term:", f"{loan['term_months']} months", "Frequency:", frequency],
+        ["Installment:", format_money(loan.get('installment_amount') or loan['monthly_payment'], company['currency']), "Installments:", str(loan.get('installment_count') or len(schedule))],
         ["Total Interest:", format_money(loan['total_interest'], company['currency']), "Total Repayment:", format_money(total_repayment, company['currency'])],
+        ["Processing Fee:", format_money(loan.get('processing_fee') or 0, company['currency']), "Insurance Fee:", format_money(loan.get('insurance_fee') or 0, company['currency'])],
+        ["Net Disbursed:", format_money(loan.get('disbursed_amount') or loan['principal'], company['currency']), "Effective APR:", f"{float(loan.get('taeg') or 0):.2f}%"],
         ["Start Date:", loan['start_date'], "Status:", loan['status'].upper()],
     ]
     loan_table = Table(loan_data, colWidths=[100, 130, 100, 130])
@@ -238,12 +248,48 @@ def generate_contract_pdf(loan_id, output_path=None):
     elements.append(amort_table)
     elements.append(Spacer(1, 10*mm))
 
+    if guarantors:
+        elements.append(Paragraph("GUARANTORS / CO-MAKERS", styles['SectionHeader']))
+        guarantor_data = [["Name", "Contact", "Relationship", "ID Number"]]
+        guarantor_data.extend([[g['name'], g.get('contact') or "—", g.get('relation') or "—", g.get('id_number') or "—"] for g in guarantors])
+        guarantor_table = Table(guarantor_data, colWidths=[130, 110, 110, 110])
+        guarantor_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('PADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(guarantor_table)
+        elements.append(Spacer(1, 6*mm))
+
+    if collateral_items:
+        elements.append(Paragraph("COLLATERAL", styles['SectionHeader']))
+        collateral_data = [["Description", "Type", "Estimated Value", "Serial / Plate", "Status"]]
+        collateral_data.extend([[
+            item['description'], str(item.get('collateral_type') or 'other').replace('_', ' ').title(),
+            format_money(item.get('estimated_value') or 0, company['currency']),
+            item.get('plate_number') or item.get('serial_number') or "—", str(item.get('status') or 'pledged').title()
+        ] for item in collateral_items])
+        collateral_table = Table(collateral_data, colWidths=[135, 75, 90, 90, 70])
+        collateral_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('PADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(collateral_table)
+        elements.append(Spacer(1, 6*mm))
+
     # Terms
     elements.append(Paragraph("TERMS AND CONDITIONS", styles['SectionHeader']))
     terms = [
         "1. The borrower agrees to repay the loan according to the amortization schedule above.",
         "2. Late payments may incur additional charges as agreed upon.",
-        "3. The borrower acknowledges receipt of the full principal amount.",
+        f"3. The borrower acknowledges net loan proceeds of {format_money(loan.get('disbursed_amount') or loan['principal'], company['currency'])} after disclosed deductions.",
         "4. This agreement is binding upon signature by both parties.",
     ]
     for t in terms:
@@ -267,6 +313,30 @@ def generate_contract_pdf(loan_id, output_path=None):
         ('TOPPADDING', (0, 0), (-1, -1), 4),
     ]))
     elements.append(sig_table)
+    if guarantors:
+        elements.append(Spacer(1, 12*mm))
+        guarantor_signatures = []
+        for guarantor in guarantors:
+            signature_path = guarantor.get('signature_path') or ''
+            signature_mark = "_________________________"
+            if signature_path and os.path.exists(signature_path):
+                try:
+                    signature_mark = Image(signature_path, width=50*mm, height=15*mm)
+                except Exception:
+                    signature_mark = "_________________________"
+            guarantor_signatures.extend([
+                [signature_mark],
+                ["Guarantor / Co-maker Signature"],
+                [guarantor['name']],
+            ])
+        guarantor_sig_table = Table(guarantor_signatures, colWidths=[220])
+        guarantor_sig_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 2), (-1, 2), 10),
+        ]))
+        elements.append(guarantor_sig_table)
 
     doc.build(elements)
     if output_path:
@@ -310,7 +380,7 @@ def generate_receipt_pdf(payment_id, output_path=None):
     total_paid = cursor.fetchone()['total_paid']
     conn.close()
 
-    total_due = loan['principal'] + loan['total_interest']
+    total_due = float(loan.get('total_repayment') or 0) or (loan['principal'] + loan['total_interest'])
     remaining = total_due - total_paid
 
     # Build PDF
@@ -447,7 +517,7 @@ def generate_amortization_pdf(loan_id, output_path=None):
     conn.close()
 
     today_str = datetime.now().strftime("%Y-%m-%d")
-    total_due_loan = loan['principal'] + loan['total_interest']
+    total_due_loan = float(loan.get('total_repayment') or 0) or (loan['principal'] + loan['total_interest'])
     remaining_loan = max(0, total_due_loan - total_paid)
 
     # Build PDF
@@ -519,7 +589,7 @@ def generate_amortization_pdf(loan_id, output_path=None):
             Paragraph("<b>Remaining:</b>", styles['FieldLabel']),
             Paragraph(f"<b>{format_money(remaining_loan, company['currency'])}</b>", styles['FieldValue']),
             Paragraph("<b>Term:</b>", styles['FieldLabel']),
-            Paragraph(f"<b>{loan['term_months']} months — Start: {loan['start_date']}</b>", styles['FieldValue']),
+            Paragraph(f"<b>{loan['term_months']} months — {(loan.get('repayment_frequency') or 'monthly').replace('biweekly', 'every 2 weeks').title()} — Start: {loan['start_date']}</b>", styles['FieldValue']),
         ],
     ]
     summary_table = Table(summary_data, colWidths=[65, 120, 65, 120])
