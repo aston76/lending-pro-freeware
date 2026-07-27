@@ -25,6 +25,7 @@ PYTHON_FILES = [
     "demo_entry.py",
     "build_macos_demo.py",
     "generate_icon.py",
+    "scripts/capture_screenshots.py",
     "scripts/run_tests.py",
 ]
 JS_FILES = [

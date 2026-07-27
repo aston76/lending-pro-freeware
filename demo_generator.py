@@ -409,9 +409,128 @@ def generate_demo_data():
 """)
 
 
+def _enhance_with_v14_features():
+    """Add KYC, guarantors, collateral, collectors and fees to the demo data."""
+    set_demo_mode(True)
+    conn = get_connection()
+    c = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ── KYC data for key clients ────────────────────────────────
+    kyc = {
+        "DEMO-LOW-001":   ("SSS-34-8812345",  "1988-03-15", "female", "Cebu Pacific Cargo",  "Warehouse Staff"),
+        "DEMO-LOW-003":   ("UMID-5542-9981",  "1991-09-02", "female", "Chong Hua Hospital",   "Registered Nurse"),
+        "DEMO-MED-001":   ("PH-2019-44587",   "1985-06-20", "male",   "Self-employed",        "Sari-sari Store Owner"),
+        "DEMO-HIGH-001":  ("SSS-34-7781234",  "1979-11-08", "male",   "Construction Contract","Foreman"),
+        "DEMO-HIGH-002":  ("UMID-2210-3344",  "1994-04-12", "female", "Gaisano Mall Cebu",    "Sales Associate"),
+        "DEMO-CRIT-001":  ("SSS-33-6677123",  "1972-01-30", "male",   "Freelance",            "Jeepney Driver"),
+        "DEMO-CRIT-002":  ("PH-2020-12098",   "1968-08-14", "female", "Retired",              "Pensioner"),
+        "DEMO-GOOD-001":  ("SSS-34-1123456",  "1992-05-25", "male",   "Ayala Malls Cebu",     "Store Manager"),
+        "DEMO-GOOD-002":  ("UMID-9981-2233",  "1987-12-03", "female", "PLDT Cebu",            "Team Lead"),
+        "DEMO-GOOD-006":  ("PH-2018-77654",   "1983-07-17", "female", "SM Seaside Cebu",      "Restaurant Owner"),
+        "DEMO-PAID-002":  ("SSS-34-9988776",  "1990-02-28", "male",   "BDO Branch Cebu",      "Bank Teller"),
+        "DEMO-DEF-001":   ("SSS-33-5544332",  "1976-10-09", "male",   "Freelance",            "Market Vendor"),
+    }
+    for cid, (id_num, dob, gender, employer, occ) in kyc.items():
+        c.execute(
+            "UPDATE clients SET id_number=?, date_of_birth=?, gender=?, employer=?, occupation=? WHERE id=?",
+            (id_num, dob, gender, employer, occ, cid),
+        )
+
+    # ── Collectors ──────────────────────────────────────────────
+    c.execute(
+        "INSERT INTO collectors (name, contact, active, notes, created_at) VALUES (?, ?, 1, ?, ?)",
+        ("Jun Dela Peña", "0917-555-0101", "North Cebu City routes", now_str),
+    )
+    collector_north = c.lastrowid
+    c.execute(
+        "INSERT INTO collectors (name, contact, active, notes, created_at) VALUES (?, ?, 1, ?, ?)",
+        ("Cora Villanueva", "0917-555-0102", "Mandaue and Lapu-Lapu routes", now_str),
+    )
+    collector_south = c.lastrowid
+    c.execute(
+        "INSERT INTO collectors (name, contact, active, notes, created_at) VALUES (?, ?, 0, ?, ?)",
+        ("Tony Reyes", "0917-555-0103", "Inactive — transferred to Manila", now_str),
+    )
+
+    for cid in ("DEMO-LOW-001", "DEMO-LOW-002", "DEMO-HIGH-001", "DEMO-CRIT-001", "DEMO-MED-001"):
+        c.execute("UPDATE loans SET collector_id=? WHERE client_id=?", (collector_north, cid))
+    for cid in ("DEMO-GOOD-001", "DEMO-GOOD-002", "DEMO-HIGH-002", "DEMO-MED-002", "DEMO-CRIT-002"):
+        c.execute("UPDATE loans SET collector_id=? WHERE client_id=?", (collector_south, cid))
+
+    # ── Processing fees on larger loans ─────────────────────────
+    fee_updates = [
+        ("DEMO-GOOD-002", 2500, 0),
+        ("DEMO-GOOD-006", 5000, 800),
+        ("DEMO-CRIT-002", 3000, 0),
+        ("DEMO-PAID-002", 1500, 0),
+        ("DEMO-HIGH-001", 1000, 0),
+    ]
+    for cid, proc_fee, ins_fee in fee_updates:
+        c.execute(
+            "UPDATE loans SET processing_fee=?, insurance_fee=?, disbursed_amount=principal-?-? WHERE client_id=?",
+            (proc_fee, ins_fee, proc_fee, ins_fee, cid),
+        )
+
+    # ── Guarantors ──────────────────────────────────────────────
+    def _guarantor(client_id, name, contact, relation, id_number=""):
+        c.execute("SELECT id FROM loans WHERE client_id=? ORDER BY id LIMIT 1", (client_id,))
+        row = c.fetchone()
+        if not row:
+            return
+        c.execute(
+            """INSERT INTO guarantors
+               (loan_id, client_id, name, contact, relation, id_number, address, signature_path, notes, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, '', '', ?)""",
+            (row["id"], client_id, name, contact, relation, id_number, "Cebu City", now_str),
+        )
+
+    _guarantor("DEMO-HIGH-002", "Maria Santos",     "09171234501", "Sister",    "SSS-34-8812345")
+    _guarantor("DEMO-HIGH-002", "Ramon Villanueva", "0945-555-0201", "Husband", "")
+    _guarantor("DEMO-CRIT-001", "Lourdes Ramos",    "0946-555-0202", "Wife",    "SSS-33-2233445")
+    _guarantor("DEMO-GOOD-002", "Eduardo Reyes",    "0947-555-0203", "Father",  "PH-2015-88991")
+    _guarantor("DEMO-GOOD-006", "Roberto Gonzales", "0948-555-0204", "Brother", "")
+
+    # ── Collateral ──────────────────────────────────────────────
+    def _collateral(client_id, desc, ctype, value, serial="", plate="", status="pledged"):
+        c.execute("SELECT id FROM loans WHERE client_id=? ORDER BY id LIMIT 1", (client_id,))
+        row = c.fetchone()
+        if not row:
+            return
+        c.execute(
+            """INSERT INTO collateral
+               (loan_id, client_id, description, collateral_type, estimated_value,
+                serial_number, plate_number, status, notes, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?)""",
+            (row["id"], client_id, desc, ctype, value, serial, plate, status, now_str),
+        )
+
+    _collateral("DEMO-CRIT-001", "2021 Honda Click 125i",        "vehicle",     45000, plate="CEB-78421", status="pledged")
+    _collateral("DEMO-CRIT-002", "Residential lot — Brgy. Lahug", "real_estate", 120000, status="pledged")
+    _collateral("DEMO-GOOD-002", "Samsung 65\" Smart TV",        "electronics", 28000, serial="SN-QN90A-7712")
+    _collateral("DEMO-GOOD-006", "2019 Toyota Wigo",             "vehicle",     380000, plate="CEB-22155", status="pledged")
+    _collateral("DEMO-HIGH-001", "Gold necklace 18k — 25g",      "jewelry",      55000, status="pledged")
+    _collateral("DEMO-PAID-002", "Honda Beat 2020",              "vehicle",     52000, plate="CEB-66033", status="released")
+    _collateral("DEMO-DEF-001",  "Refrigerator — inverter",      "equipment",    18000, serial="SN-LG-99182", status="seized")
+
+    # ── Default metadata for recovery reporting ─────────────────
+    c.execute(
+        "UPDATE loans SET defaulted_at=?, balance_at_default=20000 WHERE client_id='DEMO-DEF-001'",
+        (_days_ago(200),),
+    )
+    c.execute(
+        "UPDATE loans SET defaulted_at=?, balance_at_default=42000 WHERE client_id='DEMO-DEF-002'",
+        (_days_ago(240),),
+    )
+
+    conn.commit()
+    conn.close()
+
+
 if __name__ == '__main__':
     try:
         generate_demo_data()
+        _enhance_with_v14_features()
     except Exception as e:
         import traceback
         print("Demo generation failed:", e)

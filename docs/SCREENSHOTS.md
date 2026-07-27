@@ -12,7 +12,13 @@ The official 1280 x 512 project banner presents Lending Pro as a private loan-ma
 
 ![Lending Pro Freeware animated tour](screenshots/demo.gif)
 
-The GitHub-compatible GIF cycles through the dashboard, loan list, payment history, and borrower profile.
+The GitHub-compatible GIF cycles through the dashboard, loan list, payment history, and borrower profile — all captured from Lending Pro 1.5.0 with the new international branding.
+
+## Optional login screen
+
+[![Optional startup login with PBKDF2 password protection](screenshots/login-screen.png)](screenshots/login-screen.png)
+
+When login at startup is enabled, the application shows a secure opening screen before loading any business data.
 
 ## Dashboard
 
@@ -34,7 +40,7 @@ The GitHub-compatible GIF cycles through the dashboard, loan list, payment histo
 
 [![Client profile with photo, DTI and documents](screenshots/client-detail.png)](screenshots/client-detail.png)
 
-## Settings — currencies & languages
+## Settings — profiles, login, currencies & defaults
 
 [![Settings showing currency and language selectors](screenshots/settings.png)](screenshots/settings.png)
 

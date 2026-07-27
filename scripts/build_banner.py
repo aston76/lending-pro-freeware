@@ -36,19 +36,16 @@ f_logo = font(56, True)
 
 draw = ImageDraw.Draw(bg)
 
-# Logo mark: rounded gradient square with bank/landmark glyph (simple)
+# Logo: paste the official brand mark
 lx, ly = 120, 130
-logo_size = 96
-logo = Image.new("RGBA", (logo_size, logo_size), (0,0,0,0))
-ld = ImageDraw.Draw(logo)
-ld.rounded_rectangle([0,0,logo_size-1,logo_size-1], radius=24, fill=(40,120,220))
-# simple columns/roof glyph
-roof_y = 30
-ld.polygon([(logo_size//2, 16),(16, roof_y),(logo_size-16, roof_y)], fill=(255,255,255))
-cols = [22, 41, 59, 78]
-for cx in cols:
-    ld.rounded_rectangle([cx, roof_y+10, cx+10, logo_size-26], radius=4, fill=(255,255,255))
-ld.rounded_rectangle([14, logo_size-26, logo_size-14, logo_size-16], radius=3, fill=(255,255,255))
+logo_size = 110
+brand_path = os.path.join(ROOT, "web", "assets", "lending-pro-mark.png")
+if os.path.exists(brand_path):
+    logo = Image.open(brand_path).convert("RGBA").resize((logo_size, logo_size), Image.LANCZOS)
+else:
+    logo = Image.new("RGBA", (logo_size, logo_size), (0,0,0,0))
+    ld = ImageDraw.Draw(logo)
+    ld.rounded_rectangle([0,0,logo_size-1,logo_size-1], radius=26, fill=(13,27,58))
 bg.paste(logo, (lx, ly), logo)
 
 title = "Lending Pro Freeware"
@@ -64,7 +61,7 @@ draw.text((tx, ty), title, font=f_title, fill=(245, 248, 252))
 tag = "Private, offline-first loan & repayment management for lenders."
 draw.text((tx+2, ty+160), tag, font=f_tag, fill=(180, 200, 225))
 
-pills = ["100% Offline", "22 Currencies", "17 Languages", "Webcam Capture", "PDF Contracts", "Free Forever", "Multi-profile", "Local Backup"]
+pills = ["100% Offline", "22 Currencies", "Optional Login", "Guarantors & Collateral", "PAR & Aging", "PDF Contracts", "Excel Exports", "Free Forever"]
 # two rows, left-aligned, confined to left half (max x ~ 1180)
 max_x = 1180
 row_y = [ty+160+90, ty+160+90+70]
