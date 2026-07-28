@@ -2,6 +2,11 @@
 
 Pour une présentation complète en français de toutes les nouveautés, consulter [`NOUVEAUTES.md`](NOUVEAUTES.md).
 
+## Unreleased
+
+- Replaced the regional demo geography with fictitious Metro Manila data so public examples do not reveal the maintainer's real area.
+- Replaced the personal contact address and local filesystem paths with public project support links and portable paths.
+
 ## 1.5.0 - 2026-07-27
 
 - Replaced the legacy currency-symbol icon with a new international Lending Pro brand mark combining a financial ledger, portfolio growth and protection.

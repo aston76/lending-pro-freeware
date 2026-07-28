@@ -617,7 +617,7 @@ const App = {
             commissions: ['Referral Commissions', 'Track referral earnings'],
             settings: ['Settings', 'Application configuration and backup'],
             help: ['Help & User Guide', 'Complete guide to using Lending Pro Freeware'],
-            about: ['About', 'Application information and custom development contact'],
+            about: ['About', 'Application information and public project support'],
             logs: ['System Logs', 'Persistent logs — errors & events'],
         };
 

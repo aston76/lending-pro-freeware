@@ -170,8 +170,8 @@ Le mot de passe protège également la suppression, la réinitialisation et le c
 - Nouvelle page À propos intégrée à l’application.
 - Présentation de la confidentialité, des calculs et des documents professionnels.
 - Proposition d’adaptation du logiciel aux besoins particuliers d’une entreprise.
-- Adresse de contact : **alain.eric@ik.me**.
-- Bouton ouvrant directement la messagerie de l’utilisateur avec un message prérempli.
+- Support public via les GitHub Issues du projet, sans adresse personnelle publiée dans l’application.
+- Bouton ouvrant directement la page publique de support.
 
 ## Interface et cohérence linguistique
 
@@ -226,7 +226,7 @@ Le mot de passe protège également la suppression, la réinitialisation et le c
 
 ## Emplacements des livrables
 
-- Application installée : `/Users/alain/Applications/Lending Pro Freeware.app`
+- Application installable depuis la release GitHub officielle.
 - DMG : `release/Lending-Pro-Freeware-macOS-arm64.dmg`
 - Somme SHA-256 : `release/Lending-Pro-Freeware-macOS-arm64.dmg.sha256`
 - Source du logo : `branding/lending-pro-icon-source.png`

@@ -16,7 +16,7 @@ const AboutPage = {
             }
         } catch (e) { }
 
-        const contactEmail = 'alain.eric@ik.me';
+        const supportUrl = 'https://github.com/aston76/lending-pro-freeware/issues';
 
         content.innerHTML = `
             <!-- Hero -->
@@ -63,19 +63,19 @@ const AboutPage = {
                     <div class="flex flex-col sm:flex-row items-center gap-4">
                         <div class="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                              style="background: rgba(0,122,255,0.12);">
-                            <i data-lucide="mail" class="w-6 h-6" style="color: var(--accent);"></i>
+                            <i data-lucide="messages-square" class="w-6 h-6" style="color: var(--accent);"></i>
                         </div>
                         <div class="flex-1 min-w-0 text-center sm:text-left">
-                            <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color: var(--text-tertiary);">Contact</p>
-                            <p class="font-semibold text-sm break-all" style="color: var(--text-primary);">${contactEmail}</p>
+                            <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color: var(--text-tertiary);">Public support</p>
+                            <p class="font-semibold text-sm" style="color: var(--text-primary);">GitHub Issues</p>
                             <p class="text-xs mt-1" style="color: var(--text-secondary);">
-                                Describe your requirements to receive a response and customization quote.
+                                Report a problem or propose an improvement without exposing private customer data.
                             </p>
                         </div>
-                        <button onclick="AboutPage.contact('${contactEmail}')"
+                        <button onclick="AboutPage.openSupport('${supportUrl}')"
                                 class="btn btn-primary flex items-center gap-2 flex-shrink-0">
-                            <i data-lucide="send" class="w-4 h-4"></i>
-                            <span>Send a message</span>
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                            <span>Open support</span>
                         </button>
                     </div>
                 </div>
@@ -97,7 +97,7 @@ const AboutPage = {
             <!-- Footer -->
             <div class="mt-6 text-center">
                 <p class="text-xs" style="color: var(--text-tertiary);">
-                    ${appName} · Version ${version} · Developed by Alain
+                    ${appName} · Version ${version} · Aston Swiss App
                 </p>
             </div>
         `;
@@ -116,23 +116,14 @@ const AboutPage = {
         `;
     },
 
-    async contact(email) {
-        const subject = encodeURIComponent('Customization request — Lending Pro Freeware');
-        const body = encodeURIComponent(
-            'Hello,\n\n' +
-            'I would like to adapt the software to my business.\n\n' +
-            'My requirements:\n' +
-            '— \n\n' +
-            'Kind regards,'
-        );
-        const mailto = `mailto:${email}?subject=${subject}&body=${body}`;
+    async openSupport(url) {
         try {
-            const res = await App.api('open_url', mailto);
+            const res = await App.api('open_url', url);
             if (res && res.success === false) {
-                UI.toast('Could not open your email app. Write to: ' + email, 'warning');
+                UI.toast('Could not open GitHub Issues.', 'warning');
             }
         } catch (e) {
-            UI.toast('Write to: ' + email, 'info');
+            UI.toast('Support: github.com/aston76/lending-pro-freeware/issues', 'info');
         }
     }
 };
