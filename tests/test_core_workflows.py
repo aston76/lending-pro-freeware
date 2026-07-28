@@ -194,6 +194,28 @@ def test_help_content_is_built_only_after_app_initialization():
     assert "UI.currencyCode()" not in eager_prefix
 
 
+def test_public_sources_exclude_maintainer_personal_details():
+    project_root = Path(__file__).resolve().parents[1]
+    text_suffixes = {".bat", ".js", ".json", ".md", ".py", ".sh", ".txt", ".yaml", ".yml"}
+    excluded_dirs = {".git", ".venv", "node_modules", "venv", "venv_win"}
+    forbidden = (
+        "alain.eric" + "@ik.me",
+        "/Users/" + "alain",
+        "Developed by " + "Alain",
+        "Ce" + "bu",
+        "Consola" + "cion",
+        "Tolo" + "tolo",
+    )
+
+    for source_file in project_root.rglob("*"):
+        if not source_file.is_file() or source_file.suffix.lower() not in text_suffixes:
+            continue
+        if excluded_dirs.intersection(source_file.relative_to(project_root).parts):
+            continue
+        source = source_file.read_text(encoding="utf-8", errors="ignore")
+        assert not any(marker.lower() in source.lower() for marker in forbidden), source_file
+
+
 def test_legacy_bank_payment_schema_migrates(tmp_path, monkeypatch):
     support_dir = app_support_dir(str(tmp_path))
     os.makedirs(support_dir, exist_ok=True)

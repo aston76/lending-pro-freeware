@@ -1,8 +1,9 @@
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageChops
 import math, os
+from pathlib import Path
 
-ROOT = "/Users/alain/Mes Pojets IA/Loan Manager"
+ROOT = Path(__file__).resolve().parents[1]
 OUT = os.path.join(ROOT, "docs/screenshots/banner.png")
 BW, BH = 2400, 1000
 

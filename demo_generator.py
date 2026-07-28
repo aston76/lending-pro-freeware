@@ -94,7 +94,7 @@ def _add_client(c, cid, first, last, contact, rating=4, notes="", monthly_income
                              rating, referred_by, notes, monthly_income, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (cid, first, last,
-          f"Brgy. {random.choice(['Santo Niño','Poblacion','San Roque','Magsaysay'])}, Cebu City",
+          f"Brgy. {random.choice(['Tondo', 'Sampaloc', 'Paco', 'Pandacan'])}, Manila",
           contact, rating, referred_by, notes, monthly_income, ago, now))
 
 
@@ -418,17 +418,17 @@ def _enhance_with_v14_features():
 
     # ── KYC data for key clients ────────────────────────────────
     kyc = {
-        "DEMO-LOW-001":   ("SSS-34-8812345",  "1988-03-15", "female", "Cebu Pacific Cargo",  "Warehouse Staff"),
-        "DEMO-LOW-003":   ("UMID-5542-9981",  "1991-09-02", "female", "Chong Hua Hospital",   "Registered Nurse"),
+        "DEMO-LOW-001":   ("SSS-34-8812345",  "1988-03-15", "female", "Metro Cargo Services", "Warehouse Staff"),
+        "DEMO-LOW-003":   ("UMID-5542-9981",  "1991-09-02", "female", "City General Hospital", "Registered Nurse"),
         "DEMO-MED-001":   ("PH-2019-44587",   "1985-06-20", "male",   "Self-employed",        "Sari-sari Store Owner"),
         "DEMO-HIGH-001":  ("SSS-34-7781234",  "1979-11-08", "male",   "Construction Contract","Foreman"),
-        "DEMO-HIGH-002":  ("UMID-2210-3344",  "1994-04-12", "female", "Gaisano Mall Cebu",    "Sales Associate"),
+        "DEMO-HIGH-002":  ("UMID-2210-3344",  "1994-04-12", "female", "Metro Retail Center",  "Sales Associate"),
         "DEMO-CRIT-001":  ("SSS-33-6677123",  "1972-01-30", "male",   "Freelance",            "Jeepney Driver"),
         "DEMO-CRIT-002":  ("PH-2020-12098",   "1968-08-14", "female", "Retired",              "Pensioner"),
-        "DEMO-GOOD-001":  ("SSS-34-1123456",  "1992-05-25", "male",   "Ayala Malls Cebu",     "Store Manager"),
-        "DEMO-GOOD-002":  ("UMID-9981-2233",  "1987-12-03", "female", "PLDT Cebu",            "Team Lead"),
-        "DEMO-GOOD-006":  ("PH-2018-77654",   "1983-07-17", "female", "SM Seaside Cebu",      "Restaurant Owner"),
-        "DEMO-PAID-002":  ("SSS-34-9988776",  "1990-02-28", "male",   "BDO Branch Cebu",      "Bank Teller"),
+        "DEMO-GOOD-001":  ("SSS-34-1123456",  "1992-05-25", "male",   "Metro Retail Center",  "Store Manager"),
+        "DEMO-GOOD-002":  ("UMID-9981-2233",  "1987-12-03", "female", "National Telecom Services", "Team Lead"),
+        "DEMO-GOOD-006":  ("PH-2018-77654",   "1983-07-17", "female", "Harbor Restaurant Group", "Restaurant Owner"),
+        "DEMO-PAID-002":  ("SSS-34-9988776",  "1990-02-28", "male",   "Commercial Bank Branch", "Bank Teller"),
         "DEMO-DEF-001":   ("SSS-33-5544332",  "1976-10-09", "male",   "Freelance",            "Market Vendor"),
     }
     for cid, (id_num, dob, gender, employer, occ) in kyc.items():
@@ -440,17 +440,17 @@ def _enhance_with_v14_features():
     # ── Collectors ──────────────────────────────────────────────
     c.execute(
         "INSERT INTO collectors (name, contact, active, notes, created_at) VALUES (?, ?, 1, ?, ?)",
-        ("Jun Dela Peña", "0917-555-0101", "North Cebu City routes", now_str),
+        ("Jun Dela Peña", "0917-555-0101", "North Manila routes", now_str),
     )
     collector_north = c.lastrowid
     c.execute(
         "INSERT INTO collectors (name, contact, active, notes, created_at) VALUES (?, ?, 1, ?, ?)",
-        ("Cora Villanueva", "0917-555-0102", "Mandaue and Lapu-Lapu routes", now_str),
+        ("Cora Villanueva", "0917-555-0102", "South Manila routes", now_str),
     )
     collector_south = c.lastrowid
     c.execute(
         "INSERT INTO collectors (name, contact, active, notes, created_at) VALUES (?, ?, 0, ?, ?)",
-        ("Tony Reyes", "0917-555-0103", "Inactive — transferred to Manila", now_str),
+        ("Tony Reyes", "0917-555-0103", "Inactive — transferred to Quezon City", now_str),
     )
 
     for cid in ("DEMO-LOW-001", "DEMO-LOW-002", "DEMO-HIGH-001", "DEMO-CRIT-001", "DEMO-MED-001"):
@@ -482,7 +482,7 @@ def _enhance_with_v14_features():
             """INSERT INTO guarantors
                (loan_id, client_id, name, contact, relation, id_number, address, signature_path, notes, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, '', '', ?)""",
-            (row["id"], client_id, name, contact, relation, id_number, "Cebu City", now_str),
+            (row["id"], client_id, name, contact, relation, id_number, "Manila", now_str),
         )
 
     _guarantor("DEMO-HIGH-002", "Maria Santos",     "09171234501", "Sister",    "SSS-34-8812345")
