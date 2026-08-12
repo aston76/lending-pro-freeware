@@ -6,7 +6,7 @@ All screenshots were captured from an isolated application profile. The demo dat
 
 [![Official Lending Pro banner](screenshots/banner.png)](screenshots/banner.png)
 
-The official 1280 x 512 project banner presents Lending Pro as a private loan-management product with repayment tracking, reminders, dashboard analytics, and local data ownership.
+The official 2400 x 1000 project banner presents Lending Pro as a private loan-management product with repayment tracking, reminders, dashboard analytics, and local data ownership.
 
 ## Animated tour
 

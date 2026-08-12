@@ -457,7 +457,7 @@ const App = {
         this.isDemoMode = Boolean(appMode.demo_active);
         document.title = this.appName;
         const versionLabel = document.getElementById('sidebar-version');
-        if (versionLabel) versionLabel.textContent = `v1.5.0 - ${this.appName}`;
+        if (versionLabel) versionLabel.textContent = `v1.5.1 - ${this.appName}`;
         const lockButton = document.getElementById('lock-session-btn');
         if (lockButton) lockButton.classList.toggle('hidden', !this.startupLoginEnabled);
         this.updateDemoControl();

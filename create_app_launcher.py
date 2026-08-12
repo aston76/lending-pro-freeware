@@ -128,9 +128,9 @@ exec "$PYTHON" "$APP_CODE/main.py" >> "$LOG_DIR/PH-Lending.log" 2>&1
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.5.0</string>
+    <string>1.5.1</string>
     <key>CFBundleVersion</key>
-    <string>7</string>
+    <string>8</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.14</string>
     <key>NSHighResolutionCapable</key>

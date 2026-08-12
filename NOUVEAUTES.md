@@ -1,9 +1,19 @@
 # Nouveautés de Lending Pro Freeware
 
-Version actuelle : **1.5.0 — build 7**
-Date de livraison : **27 juillet 2026**
+Version actuelle : **1.5.1 — build 8**
+Date de livraison : **13 août 2026**
 
-Ce document regroupe toutes les nouveautés fonctionnelles, visuelles et techniques ajoutées aux versions 1.4.0 et 1.5.0.
+Ce document regroupe toutes les nouveautés fonctionnelles, visuelles et techniques ajoutées aux versions 1.4.0 à 1.5.1.
+
+## Audit et correctifs 1.5.1
+
+- Sauvegarde JSON étendue aux collecteurs, garants et garanties.
+- Réinitialisation de la démonstration alignée sur un premier chargement complet, y compris les données de risque et les nouveautés 1.4.
+- Exemples publics rendus génériques et contrôle automatisé contre la réintroduction de coordonnées personnelles.
+- Dépendance frontend transitive corrigée et audit npm ramené à zéro vulnérabilité connue.
+- États masqués rétablis pour les boutons, actions latérales et formulaires de connexion.
+- Barre d’outils et annuaire clients adaptés aux écrans mobiles de 390 px.
+- Audit fonctionnel documenté dans `docs/AUDIT_2026-08-13.md`.
 
 ## Nouveau branding
 
@@ -197,8 +207,8 @@ Le mot de passe protège également la suppression, la réinitialisation et le c
 
 ## Packaging et livraison
 
-- Version applicative portée à **1.5.0**.
-- Numéro de build macOS porté à **7**.
+- Version applicative portée à **1.5.1**.
+- Numéro de build macOS porté à **8**.
 - Application installée reconstruite avec la nouvelle icône.
 - Bundle Apple Silicon autonome reconstruit.
 - Signature ad hoc macOS vérifiée.
@@ -209,7 +219,7 @@ Le mot de passe protège également la suppression, la réinitialisation et le c
 ## Validation effectuée
 
 - Contrôle syntaxique Python et JavaScript.
-- **25 tests automatisés réussis**.
+- **27 tests automatisés réussis**, dont des contrôles empêchant la réintroduction d’informations personnelles et les régressions d’affichage des composants masqués.
 - La commande `npm test` sélectionne automatiquement l’environnement virtuel local compatible macOS, Linux ou Windows.
 - Test d’une migration depuis une ancienne base mensuelle.
 - Test de génération des données de démonstration.
@@ -223,6 +233,14 @@ Le mot de passe protège également la suppression, la réinitialisation et le c
 - Test de génération des contrats PDF et des exports Excel.
 - Démarrage réel de la copie installée et du bundle autonome.
 - Vérification des signatures, versions et sommes de contrôle.
+
+## Présentation GitHub
+
+- Bannière officielle générée depuis les ressources versionnées du projet.
+- GIF animé compatible GitHub présentant successivement le dashboard, les prêts, les paiements et la fiche client.
+- Galerie complète de captures haute résolution : connexion, dashboard vide et démo, prêts, paiements, collections, client, paramètres et rappel de don.
+- Captures et GIF régénérés depuis un profil isolé contenant uniquement des données fictives Metro Manila.
+- Scripts reproductibles pour reconstruire la bannière, les captures et le GIF sans dépendre d’un chemin local personnel.
 
 ## Emplacements des livrables
 

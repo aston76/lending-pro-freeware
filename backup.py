@@ -35,9 +35,12 @@ def _export_json(output_path):
     data = {}
 
     # Export each table
-    tables = ['clients', 'loans', 'amortization_schedule', 'payments',
-              'payment_allocations', 'documents', 'referral_commissions',
-              'penalties', 'settings', 'schema_migrations', 'audit_events']
+    tables = [
+        'clients', 'loans', 'amortization_schedule', 'payments',
+        'payment_allocations', 'documents', 'referral_commissions',
+        'penalties', 'collectors', 'guarantors', 'collateral',
+        'settings', 'schema_migrations', 'audit_events',
+    ]
 
     for table in tables:
         cursor.execute(f"SELECT * FROM {table}")

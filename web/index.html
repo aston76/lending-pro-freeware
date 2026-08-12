@@ -162,7 +162,7 @@
                 <i data-lucide="power" class="w-4 h-4"></i>
                 <span>Quit App</span>
             </button>
-            <p id="sidebar-version" class="text-[10px] text-center pt-1" style="color: var(--text-tertiary);">v1.5.0 - Lending Pro Freeware</p>
+            <p id="sidebar-version" class="text-[10px] text-center pt-1" style="color: var(--text-tertiary);">v1.5.1 - Lending Pro Freeware</p>
         </div>
     </aside>
 
@@ -183,7 +183,7 @@
                         Overview of your lending portfolio</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="toolbar-actions flex items-center gap-2 min-w-0">
                 <!-- AutoSave indicator -->
                 <div id="autosave-indicator"
                     class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -203,14 +203,14 @@
                 </button>
 
                 <!-- Online status -->
-                <div id="online-status" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                <div id="online-status" class="toolbar-secondary flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
                     style="background: rgba(52,199,89,0.12); color: #1A8F3A;">
                     <div class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--apple-green);"></div>
                     <span class="hidden sm:inline">Online</span>
                 </div>
 
                 <!-- Sounds quick toggle -->
-                <button onclick="App.quickToggleSound()" id="sound-btn" class="btn btn-icon btn-ghost"
+                <button onclick="App.quickToggleSound()" id="sound-btn" class="toolbar-secondary btn btn-icon btn-ghost"
                     title="Toggle sounds">
                     <i data-lucide="volume-2" class="w-4 h-4" id="sound-icon"></i>
                 </button>
@@ -218,11 +218,11 @@
                 <button onclick="App.toggleCalculator()" class="btn btn-icon btn-ghost" title="Calculator">
                     <i data-lucide="calculator" class="w-4 h-4"></i>
                 </button>
-                <button onclick="PrintManager.smartPrint()" id="print-btn" class="btn btn-icon btn-ghost"
+                <button onclick="PrintManager.smartPrint()" id="print-btn" class="toolbar-secondary btn btn-icon btn-ghost"
                     title="Print / Preview">
                     <i data-lucide="printer" class="w-4 h-4"></i>
                 </button>
-                <button onclick="App.showQuickActions()" class="btn btn-primary btn-sm flex items-center gap-1.5">
+                <button onclick="App.showQuickActions()" class="toolbar-new btn btn-primary btn-sm flex items-center gap-1.5">
                     <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                     <span>New</span>
                 </button>

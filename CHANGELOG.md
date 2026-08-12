@@ -4,11 +4,24 @@ Pour une présentation complète en français de toutes les nouveautés, consult
 
 ## Unreleased
 
+## 1.5.1 - 2026-08-13
+
 - Replaced the regional demo geography with fictitious Metro Manila data so public examples do not reveal the maintainer's real area.
 - Replaced the personal contact address and local filesystem paths with public project support links and portable paths.
+- Completed demo resets with the same guarantor, collateral, collector, fee and risk data as a first demo load.
+- Included collectors, guarantors and collateral in the raw JSON backup so every documented business table is preserved.
+- Removed the last regional vehicle plates and collateral locality from the public demo generator.
+- Upgraded the transitive Nano ID dependency to a patched release and restored a clean npm security audit.
+- Strengthened the privacy regression test without embedding former maintainer contact details in the public test source.
+- Kept every mobile toolbar action inside the 390 px viewport while preserving menu, calculator and quick-create access.
+- Restored the hidden state for custom buttons, sidebar actions and the login form so unavailable controls no longer appear active.
+- Made the client directory readable at phone widths by retaining the primary ID, name and contact fields without horizontal clipping.
 
 ## 1.5.0 - 2026-07-27
 
+- Added the official Lending Pro marketing banner and a GitHub-compatible animated product tour covering the dashboard, loans, payments, and client profile.
+- Added full-resolution screenshots for the login screen, dashboard, collections, loans, payments, client details, settings, and donation reminder.
+- Reworked the README and screenshot gallery with product positioning, feature coverage, installation, privacy, international support, and reproducible banner/GIF generation scripts.
 - Replaced the legacy currency-symbol icon with a new international Lending Pro brand mark combining a financial ledger, portfolio growth and protection.
 - Added matching macOS ICNS, Windows ICO and in-app PNG assets generated from one versioned brand source.
 - Added an optional per-profile login screen shown before any business data is loaded.
@@ -29,17 +42,7 @@ Pour une présentation complète en français de toutes les nouveautés, consult
 - Added PAR 1/30/60/90, aging buckets, portfolio yield and post-default recovery reporting.
 - Added collector management, loan assignment and performance reporting.
 - Extended contracts and Excel exports with the new lending, guarantor, collateral and collector data.
-- Added an About page with customization contact and made the visible application language consistently English.
-
-## Unreleased documentation - 2026-07-27
-
-- Added the official Lending Pro marketing banner supplied by the project owner.
-- Added a GitHub-compatible animated product tour covering the dashboard, loans, payments, and client profile.
-- Added full-resolution screenshots for collections, loans, payments, client details, and settings.
-- Reworked the README with product positioning, feature coverage, camera workflow, international support, installation, privacy, and audience sections.
-- Added a version-by-version summary of the complete 1.3 series.
-- Added GitHub badges, search-oriented repository topics, a richer repository description, and Ko-fi Sponsor metadata.
-- Added reproducible banner and GIF generation scripts for future documentation updates.
+- Added an About page with public project support links and made the visible application language consistently English.
 
 ## 1.3.2 - 2026-07-26
 

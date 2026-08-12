@@ -6,7 +6,7 @@ const AboutPage = {
     async render() {
         const content = document.getElementById('page-content');
 
-        let version = '1.5.0';
+        let version = '1.5.1';
         let appName = 'Lending Pro Freeware';
         try {
             const info = await App.api('get_app_info');

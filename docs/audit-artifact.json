@@ -1,0 +1,239 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Lending Pro Freeware 1.5.1 — Application Audit",
+    "description": "Validated functional, privacy, packaging and responsive audit of the public application release.",
+    "generatedAt": "2026-08-13T02:42:00+08:00",
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "layout": "full",
+        "body": "# Lending Pro Freeware 1.5.1 — Application Audit"
+      },
+      {
+        "id": "summary",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Technical summary\n\nThe supported 1.5.1 source and macOS bundle passed the audited local workflows. **27 automated tests passed**, the dependency audit reported **zero known npm vulnerabilities**, every one of the **11 main views** loaded without frontend warnings or errors, and the 390 px responsive pass found no page-level horizontal overflow or broken images.\n\nFour material defects were corrected: incomplete raw JSON backups, incomplete demo resets, custom display rules overriding hidden controls, and mobile toolbar/table clipping. Public examples and regression checks were also hardened against personal or regional maintainer information."
+      },
+      {
+        "id": "metrics",
+        "type": "metric-strip",
+        "layout": "full",
+        "cardIds": ["tests", "views", "vulnerabilities", "browser_errors"]
+      },
+      {
+        "id": "coverage-heading",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Verification coverage is broad and fully green\n\nThe chart counts independently executed evidence groups, not individual assertions. Automated, runtime, interface, packaging and privacy gates all completed successfully; the table that follows provides the exact audit trail."
+      },
+      {
+        "id": "coverage-chart",
+        "type": "chart",
+        "layout": "full",
+        "chartId": "coverage"
+      },
+      {
+        "id": "findings-heading",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Material findings were corrected before release\n\nEach row connects the original defect to the shipped correction and the proof used to close it. The table is intentionally an exact audit lookup rather than a decorative comparison."
+      },
+      {
+        "id": "findings-table",
+        "type": "table",
+        "layout": "full",
+        "tableId": "findings"
+      },
+      {
+        "id": "scope",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Scope, definitions and method\n\n**Application scope.** Public source tree, isolated local runtime, desktop and 390 × 844 px interface, SQLite business flows, generated Excel/PDF documents, backup/restore, Windows source archive, macOS DMG, dependency health and public-source privacy.\n\n**Pass definition.** A gate passes only when its command or interactive workflow completed with expected output and no unexplained integrity, console, layout, archive or privacy failure. Browser evidence used fresh page state after each interaction. Native evidence came from the built 1.5.1 / build 8 application bundle running against an isolated DEV SSD data directory.\n\n**Method.** Static source/API review, automated pytest and syntax checks, isolated business smoke, document parsing, archive inspection, dependency scanners, rendered responsive interaction and a real native launch/shutdown test."
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Limitations and residual risk\n\n- SMS delivery, Google Drive authorization, external map opening and camera permission prompts were not transmitted or granted. Full third-party proof requires real credentials or hardware permission.\n- The macOS app is ad-hoc signed and not Apple-notarized; the documented first-launch Control-click procedure remains necessary.\n- A profile password protects access through the application but does not encrypt the SQLite file.\n- Historical tags and releases may predate current privacy hardening. The current source and current release are the supported public baseline."
+      },
+      {
+        "id": "next-steps",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Recommended next steps\n\n1. Publish 1.5.1 only after GitHub Actions confirms the same check suite on the remote branch.\n2. Keep privacy, complete backup/restore and hidden-state tests as permanent release gates.\n3. Retain the 390 px responsive smoke and native **Quit & Save** shutdown proof for future desktop releases.\n4. Validate SMS, Drive and camera end to end only in a credentialed, isolated test profile."
+      },
+      {
+        "id": "questions",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## Further questions\n\nThe remaining release-governance question is whether legacy Git history and pre-hardening release assets should be rewritten or removed. That is a destructive repository operation and should be handled separately with an explicit retention decision."
+      }
+    ],
+    "cards": [
+      {
+        "id": "tests",
+        "dataset": "headline",
+        "sourceId": "automated-tests",
+        "description": "Complete pytest suite after all source and packaging changes.",
+        "metrics": [{"label": "Automated tests passed", "field": "tests", "format": "number"}]
+      },
+      {
+        "id": "views",
+        "dataset": "headline",
+        "sourceId": "browser-audit",
+        "description": "Dashboard plus every primary navigation view at desktop and mobile widths.",
+        "metrics": [{"label": "Main views verified", "field": "views", "format": "number"}]
+      },
+      {
+        "id": "vulnerabilities",
+        "dataset": "headline",
+        "sourceId": "dependency-audit",
+        "description": "Known npm vulnerabilities after the Nano ID lockfile update.",
+        "metrics": [{"label": "Known npm vulnerabilities", "field": "vulnerabilities", "format": "number"}]
+      },
+      {
+        "id": "browser_errors",
+        "dataset": "headline",
+        "sourceId": "browser-audit",
+        "description": "Warnings or errors in the final full-page responsive pass.",
+        "metrics": [{"label": "Final browser warnings/errors", "field": "browser_errors", "format": "number"}]
+      }
+    ],
+    "charts": [
+      {
+        "id": "coverage",
+        "title": "Passed evidence gates by audit area",
+        "subtitle": "August 13, 2026 — one row per independently executed gate",
+        "type": "horizontalBar",
+        "intent": "status",
+        "question": "Which audited areas have completed proof?",
+        "rationale": "A horizontal bar keeps long audit-area labels readable while showing that every evidence gate completed.",
+        "dataset": "coverage",
+        "sourceId": "audit-report",
+        "encodings": {
+          "x": {"field": "area", "type": "nominal", "label": "Audit area"},
+          "y": {"field": "passed_gates", "type": "quantitative", "label": "Passed gates", "format": "number"},
+          "tooltip": [
+            {"field": "scope", "type": "text", "label": "Evidence"},
+            {"field": "passed_gates", "type": "quantitative", "label": "Passed gates"}
+          ]
+        },
+        "valueFormat": "number",
+        "labels": {"values": "all"},
+        "settings": {"orientation": "horizontal", "sort": "descending", "showValues": true},
+        "surface": {"viewMode": "visualization"}
+      }
+    ],
+    "tables": [
+      {
+        "id": "findings",
+        "title": "Audit findings and proof",
+        "subtitle": "All material findings identified during the August 13, 2026 release audit",
+        "dataset": "findings",
+        "sourceId": "audit-report",
+        "density": "spacious",
+        "defaultSort": {"field": "area", "direction": "asc"},
+        "columns": [
+          {"field": "area", "label": "Area", "type": "text"},
+          {"field": "finding", "label": "Finding", "type": "text"},
+          {"field": "resolution", "label": "Resolution", "type": "text"},
+          {"field": "proof", "label": "Proof", "type": "text"},
+          {"field": "status", "label": "Status", "type": "text"}
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "audit-report",
+        "label": "Application audit record",
+        "path": "docs/AUDIT_2026-08-13.md",
+        "query": {
+          "language": "SQLite",
+          "sql": "SELECT area, passed_gates, scope FROM audit_coverage WHERE release = '1.5.1' ORDER BY area;",
+          "description": "Reviewed release-audit evidence captured from local checks and isolated runtime tests.",
+          "executed_at": "2026-08-13T02:42:00+08:00",
+          "tables_used": ["audit_coverage"],
+          "filters": ["Public repository copy only", "Isolated application data directories", "Desktop and 390 px widths"]
+        }
+      },
+      {
+        "id": "automated-tests",
+        "label": "Automated test suite",
+        "path": "tests/test_core_workflows.py",
+        "query": {
+          "language": "SQLite",
+          "sql": "SELECT passed_tests FROM final_test_run WHERE release = '1.5.1';",
+          "description": "Full repository regression suite executed through npm test.",
+          "executed_at": "2026-08-13T02:43:00+08:00",
+          "tables_used": ["final_test_run"],
+          "metric_definitions": ["Automated tests passed = pytest cases completed without failure in the final run."]
+        }
+      },
+      {
+        "id": "browser-audit",
+        "label": "Rendered interface audit",
+        "path": "docs/AUDIT_2026-08-13.md",
+        "query": {
+          "language": "SQLite",
+          "sql": "SELECT view_name, viewport_width, broken_images, console_errors FROM browser_view_audit WHERE release = '1.5.1' ORDER BY view_name;",
+          "description": "Fresh rendered state and console inspection for every main view at desktop and 390 px widths.",
+          "executed_at": "2026-08-13T02:32:00+08:00",
+          "tables_used": ["browser_view_audit"],
+          "metric_definitions": ["Main views verified = the 11 primary sidebar destinations loaded with non-empty content and no broken images.", "Final browser warnings/errors = warning and error entries captured during the final responsive pass."]
+        }
+      },
+      {
+        "id": "dependency-audit",
+        "label": "Dependency audit",
+        "path": "package-lock.json",
+        "query": {
+          "language": "SQLite",
+          "sql": "SELECT ecosystem, known_vulnerabilities, broken_requirements FROM dependency_audit WHERE release = '1.5.1';",
+          "description": "Final npm audit and Python dependency consistency checks.",
+          "executed_at": "2026-08-13T02:43:00+08:00",
+          "tables_used": ["dependency_audit"],
+          "metric_definitions": ["Known npm vulnerabilities = vulnerabilities reported by npm audit after the patched lockfile was installed."]
+        }
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-13T02:43:00+08:00",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {"tests": 27, "views": 11, "vulnerabilities": 0, "browser_errors": 0}
+      ],
+      "coverage": [
+        {"area": "Automated and static", "passed_gates": 5, "scope": "pytest, syntax, API mapping, npm audit, pip check"},
+        {"area": "Business runtime", "passed_gates": 7, "scope": "loan, payment, penalty, exports, PDFs, restore, database integrity"},
+        {"area": "Interface", "passed_gates": 4, "scope": "desktop views, actions, 390 px navigation, clean console"},
+        {"area": "Packaging", "passed_gates": 4, "scope": "Windows ZIP, macOS DMG, signature/checksum, native shutdown"},
+        {"area": "Privacy and security", "passed_gates": 4, "scope": "public-source privacy, secret scan, dependency audit, bundle inspection"}
+      ],
+      "findings": [
+        {"area": "Backup", "finding": "Raw JSON omitted three business tables.", "resolution": "Added collectors, guarantors and collateral.", "proof": "Backup/restore regression plus JSON inspection.", "status": "Fixed"},
+        {"area": "Demo reset", "finding": "Reset omitted later demo enhancements.", "resolution": "Rebuild the complete enhanced dataset and sequences.", "proof": "Pre/post-reset table counts and sample-data assertions.", "status": "Fixed"},
+        {"area": "Visibility", "finding": "Component display rules overrode hidden states.", "resolution": "Explicit hidden rules for buttons, sidebar and auth forms.", "proof": "Regression test and rendered control-state inspection.", "status": "Fixed"},
+        {"area": "Mobile header", "finding": "Toolbar actions extended past 390 px.", "resolution": "Collapsed secondary actions and kept essential controls.", "proof": "All visible header rectangles remained within 390 px.", "status": "Fixed"},
+        {"area": "Mobile clients", "finding": "Desktop table clipped primary phone content.", "resolution": "Compact ID, name and contact layout.", "proof": "355 px table inside 357 px container; visual inspection.", "status": "Fixed"},
+        {"area": "Public examples", "finding": "Residual regional identifiers remained in collateral.", "resolution": "Generic Metro Manila examples and privacy checks.", "proof": "Current-source and built-bundle scans.", "status": "Fixed"},
+        {"area": "Dependency", "finding": "Transitive Nano ID release was vulnerable.", "resolution": "Updated lockfile to the patched release.", "proof": "npm audit reported zero known vulnerabilities.", "status": "Fixed"},
+        {"area": "Windows package", "finding": "Source ZIP included the macOS icon.", "resolution": "Include icon.ico in the Windows package.", "proof": "Archive integrity and required-entry inspection.", "status": "Fixed"}
+      ]
+    },
+    "accessIssues": []
+  },
+  "sources": [],
+  "package_info": {
+    "root": "repository",
+    "manifestPath": "docs/audit-artifact.json",
+    "snapshotPath": "docs/audit-artifact.json"
+  }
+}

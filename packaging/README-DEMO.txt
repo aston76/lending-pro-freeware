@@ -5,7 +5,7 @@ Installation
 2. Drag Lending Pro Freeware into Applications.
 3. Open the app from Applications.
 
-The app starts with a new empty personal database. Click "Tester la demo" in
+The app starts with a new empty personal database. Click "Try demo" in
 the top-right toolbar to temporarily load fictitious data. Leaving the demo or
 restarting the app returns to the personal database.
 
