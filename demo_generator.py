@@ -505,12 +505,12 @@ def _enhance_with_v14_features():
             (row["id"], client_id, desc, ctype, value, serial, plate, status, now_str),
         )
 
-    _collateral("DEMO-CRIT-001", "2021 Honda Click 125i",        "vehicle",     45000, plate="CEB-78421", status="pledged")
-    _collateral("DEMO-CRIT-002", "Residential lot — Brgy. Lahug", "real_estate", 120000, status="pledged")
+    _collateral("DEMO-CRIT-001", "2021 Honda Click 125i",        "vehicle",     45000, plate="NCR-78421", status="pledged")
+    _collateral("DEMO-CRIT-002", "Residential lot — Brgy. Tondo", "real_estate", 120000, status="pledged")
     _collateral("DEMO-GOOD-002", "Samsung 65\" Smart TV",        "electronics", 28000, serial="SN-QN90A-7712")
-    _collateral("DEMO-GOOD-006", "2019 Toyota Wigo",             "vehicle",     380000, plate="CEB-22155", status="pledged")
+    _collateral("DEMO-GOOD-006", "2019 Toyota Wigo",             "vehicle",     380000, plate="NCR-22155", status="pledged")
     _collateral("DEMO-HIGH-001", "Gold necklace 18k — 25g",      "jewelry",      55000, status="pledged")
-    _collateral("DEMO-PAID-002", "Honda Beat 2020",              "vehicle",     52000, plate="CEB-66033", status="released")
+    _collateral("DEMO-PAID-002", "Honda Beat 2020",              "vehicle",     52000, plate="NCR-66033", status="released")
     _collateral("DEMO-DEF-001",  "Refrigerator — inverter",      "equipment",    18000, serial="SN-LG-99182", status="seized")
 
     # ── Default metadata for recovery reporting ─────────────────

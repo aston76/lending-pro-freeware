@@ -51,10 +51,10 @@ zip -r "$ZIP_FILE" \
     -x "*.pyc" \
     2>/dev/null
 
-# Ajouter l'icone si elle existe
-if [ -f "icon.icns" ]; then
-    zip -u "$ZIP_FILE" "icon.icns" 2>/dev/null
-    echo "  🎨  Icône incluse."
+# Ajouter l'icone Windows si elle existe
+if [ -f "icon.ico" ]; then
+    zip -u "$ZIP_FILE" "icon.ico" 2>/dev/null
+    echo "  🎨  Icône Windows incluse."
 fi
 
 echo ""

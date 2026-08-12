@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aston76/lending-pro-freeware/releases"><img alt="Version" src="https://img.shields.io/badge/version-1.5.0-1769aa"></a>
+  <a href="https://github.com/aston76/lending-pro-freeware/releases"><img alt="Version" src="https://img.shields.io/badge/version-1.5.1-1769aa"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-34C759"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-000000">
   <img alt="Offline" src="https://img.shields.io/badge/offline--first-FF9F0A">
@@ -25,6 +25,11 @@
   <a href="docs/screenshots/dashboard-demo.png"><img src="docs/screenshots/demo.gif" alt="Lending Pro Freeware animated tour" width="720"></a>
 </p>
 
+<p align="center">
+  <sub>Optional per-profile startup login</sub><br>
+  <a href="docs/screenshots/login-screen.png"><img src="docs/screenshots/login-screen.png" alt="Optional startup login screen with local profile protection" width="720"></a>
+</p>
+
 ---
 
 Lending Pro Freeware is the complete, no-nonsense tool for anyone who lends money and needs a clean, professional ledger. Track every client, loan, payment and overdue balance in one place. Generate signed contracts and receipts as PDF in one click. Capture a borrower's photo and ID live from the webcam. Send collection reminders. Everything stays on your computer — your data never leaves the machine unless you choose to back it up.
@@ -37,13 +42,14 @@ Le détail complet de toutes les nouveautés est disponible dans [NOUVEAUTES.md]
 
 | Version | Highlights |
 | --- | --- |
+| **1.5.1** | Complete public-release audit: full JSON backup coverage, reproducible demo resets, privacy-hardened sample data, patched frontend dependency and corrected mobile/hidden-control behavior. |
 | **1.5.0** | New international Lending Pro identity, matching macOS/Windows/web icons, and an optional per-profile login screen with PBKDF2 password protection, session locking and failed-attempt cooldown. |
 | **1.4.0** | Guarantors and signatures, structured collateral registry, extended KYC, daily/weekly/biweekly/monthly schedules, disclosed fees and net disbursement, effective APR, automatic late penalties, collectors, PAR/aging and post-default recovery reporting. |
 | **1.3.2** | Light theme by default, dark theme preserved as an option, corrected theme toggle, and a complete light-mode screenshot gallery. |
 | **1.3.1** | Donation reminder limited to once every 7 days, then once every 90 days after local donation confirmation; simplified local-only donation logic. |
 | **1.3.0** | One-command checksum-verified macOS installer, 22 currencies, worldwide address search, international phone numbers, and localized donation prompts. |
 
-The GitHub project now also includes the official product banner, an animated application tour, six full-resolution workflow screenshots, detailed feature documentation, targeted repository topics, and a Ko-fi Sponsor link.
+The GitHub project now also includes the official product banner, an animated application tour, nine full-resolution workflow screenshots, detailed feature documentation, targeted repository topics, and a Ko-fi Sponsor link.
 
 ## Why Lending Pro Freeware
 
@@ -121,7 +127,7 @@ curl -fsSL https://raw.githubusercontent.com/aston76/lending-pro-freeware/main/i
 
 Or download the Apple Silicon DMG from [Releases](https://github.com/aston76/lending-pro-freeware/releases), open it, and drag **Lending Pro Freeware** into **Applications**. The app is ad-hoc signed but not Apple-notarized; on first launch Control-click the app, choose **Open**, then confirm.
 
-It starts with an empty personal database. Use **Tester la démo** in the toolbar to load temporary fictitious data; leaving demo mode or restarting returns to your own data.
+It starts with an empty personal database. Use **Try demo** in the toolbar to load temporary fictitious data; leaving demo mode or restarting returns to your own data.
 
 ## Run from source
 
@@ -144,6 +150,8 @@ npm test        # pytest suite; automatically uses .venv/venv when present
 ```
 
 The same checks run on every push and pull request via GitHub Actions.
+
+The latest end-to-end verification record is available as a [GitHub-readable audit](docs/AUDIT_2026-08-13.md) and a [self-contained portable report](docs/AUDIT_2026-08-13.html).
 
 ## Privacy and security
 

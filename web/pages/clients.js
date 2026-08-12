@@ -43,7 +43,7 @@ const ClientsPage = {
 
         container.innerHTML = `
             <div class="glass-card overflow-hidden">
-                <table class="data-table">
+                <table class="data-table clients-table">
                     <thead>
                         <tr>
                             <th>ID</th>

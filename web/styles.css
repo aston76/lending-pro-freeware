@@ -495,6 +495,13 @@ body {
     -webkit-user-select: none;
 }
 
+/* Component display rules must never override Tailwind's visibility state. */
+.btn.hidden,
+.sidebar-link.hidden,
+.auth-form.hidden {
+    display: none !important;
+}
+
 /* Ripple layer */
 .btn::after {
     content: '';
@@ -2263,6 +2270,82 @@ body {
 @media (max-width: 767px) {
     #page-content {
         padding: 14px !important;
+    }
+
+    header {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    header > div:first-child {
+        min-width: 0;
+        gap: 8px;
+    }
+
+    #page-title {
+        max-width: 126px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .toolbar-actions {
+        gap: 4px !important;
+        flex-shrink: 0;
+    }
+
+    .toolbar-secondary,
+    .toolbar-new span {
+        display: none !important;
+    }
+
+    .toolbar-new {
+        width: 34px;
+        min-width: 34px;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .clients-table {
+        min-width: 100%;
+        table-layout: fixed;
+    }
+
+    .clients-table th,
+    .clients-table td {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .clients-table th:nth-child(1),
+    .clients-table td:nth-child(1) {
+        width: 28%;
+        overflow-wrap: anywhere;
+    }
+
+    .clients-table th:nth-child(2),
+    .clients-table td:nth-child(2) {
+        width: 46%;
+    }
+
+    .clients-table th:nth-child(3),
+    .clients-table td:nth-child(3) {
+        width: 26%;
+        overflow-wrap: anywhere;
+    }
+
+    .clients-table th:nth-child(n+4),
+    .clients-table td:nth-child(n+4) {
+        display: none;
+    }
+
+    .clients-table td:nth-child(2) > div {
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .clients-table td:nth-child(2) > div > div:last-child {
+        min-width: 0;
     }
 
     .stat-card {

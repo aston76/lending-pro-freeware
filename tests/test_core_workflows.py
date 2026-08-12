@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import importlib
+import json
 import os
 import re
 import sqlite3
@@ -194,18 +195,29 @@ def test_help_content_is_built_only_after_app_initialization():
     assert "UI.currencyCode()" not in eager_prefix
 
 
+def test_component_styles_preserve_hidden_visibility_state():
+    project_root = Path(__file__).resolve().parents[1]
+    styles_source = (project_root / "web" / "styles.css").read_text(encoding="utf-8")
+    clients_source = (project_root / "web" / "pages" / "clients.js").read_text(encoding="utf-8")
+
+    for selector in (".btn.hidden", ".sidebar-link.hidden", ".auth-form.hidden"):
+        assert selector in styles_source
+
+    visibility_rule = styles_source.split(".btn.hidden", 1)[1].split("}", 1)[0]
+    assert "display: none !important" in visibility_rule
+    assert "clients-table" in clients_source
+    assert ".clients-table th:nth-child(n+4)" in styles_source
+
+
 def test_public_sources_exclude_maintainer_personal_details():
     project_root = Path(__file__).resolve().parents[1]
     text_suffixes = {".bat", ".js", ".json", ".md", ".py", ".sh", ".txt", ".yaml", ".yml"}
-    excluded_dirs = {".git", ".venv", "node_modules", "venv", "venv_win"}
-    forbidden = (
-        "alain.eric" + "@ik.me",
-        "/Users/" + "alain",
-        "Developed by " + "Alain",
-        "Ce" + "bu",
-        "Consola" + "cion",
-        "Tolo" + "tolo",
-    )
+    excluded_dirs = {
+        ".git", ".venv", "build", "dist", "node_modules", "release", "venv", "venv_win"
+    }
+    allowed_email_addresses = {"juan@example.com", "info@lending.com"}
+    local_home_marker = "/" + "Users" + "/"
+    personal_attribution_marker = "Developed" + " by"
 
     for source_file in project_root.rglob("*"):
         if not source_file.is_file() or source_file.suffix.lower() not in text_suffixes:
@@ -213,10 +225,22 @@ def test_public_sources_exclude_maintainer_personal_details():
         if excluded_dirs.intersection(source_file.relative_to(project_root).parts):
             continue
         source = source_file.read_text(encoding="utf-8", errors="ignore")
-        assert not any(marker.lower() in source.lower() for marker in forbidden), source_file
+        assert local_home_marker not in source, source_file
+        assert personal_attribution_marker not in source, source_file
+
+        email_addresses = {
+            match.group(0).lower()
+            for match in re.finditer(
+                r"[A-Z0-9][A-Z0-9._%+-]*@[A-Z0-9.-]+\.[A-Z]{2,}",
+                source,
+                re.IGNORECASE,
+            )
+            if not match.group(0).lower().endswith("@2x.png")
+        }
+        assert email_addresses <= allowed_email_addresses, (source_file, email_addresses)
 
 
-def test_legacy_bank_payment_schema_migrates(tmp_path, monkeypatch):
+def test_bank_schema_migration(tmp_path, monkeypatch):
     support_dir = app_support_dir(str(tmp_path))
     os.makedirs(support_dir, exist_ok=True)
     db_path = os.path.join(support_dir, "phlending.db")
@@ -359,10 +383,23 @@ def test_legacy_bank_schema_rebuilds_allocation_foreign_key(tmp_path, monkeypatc
 def test_backup_restore_replaces_active_profile_safely(tmp_path, monkeypatch):
     api_obj, _, _, _ = fresh_api(tmp_path, monkeypatch)
     first_client = make_client(api_obj, "First", "Client")
+    collector = api_obj.add_collector({"name": "Backup Collector"})
+    loan = api_obj.create_loan(
+        first_client, 5000, 12, "fixed", 3, "2026-01-01", None, False,
+        "monthly", 0, 0, False, collector["id"],
+        [{"name": "Backup Guarantor"}],
+        [{"description": "Backup Asset", "collateral_type": "equipment"}],
+    )
+    assert loan["success"] is True
 
     backup_result = api_obj.do_backup_local()
     assert backup_result["success"] is True
     backup_name = "backup_" + backup_result["timestamp"]
+    json_path = next(item["path"] for item in backup_result["files"] if item["type"] == "json")
+    exported = json.loads(Path(json_path).read_text(encoding="utf-8"))
+    assert exported["collectors"][0]["name"] == "Backup Collector"
+    assert exported["guarantors"][0]["name"] == "Backup Guarantor"
+    assert exported["collateral"][0]["description"] == "Backup Asset"
 
     second_client = make_client(api_obj, "Second", "Client")
     assert second_client != first_client
@@ -583,6 +620,35 @@ def test_demo_distribution_starts_empty_and_demo_is_temporary(tmp_path, monkeypa
     assert api_obj.get_profiles() == []
     assert api_obj.restore_backup("anything")["success"] is False
     assert api_obj.create_new_profile("Private")["success"] is False
+
+    conn = database.get_connection()
+    before_reset = {
+        table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in ("collectors", "guarantors", "collateral")
+    }
+    addresses = [row[0] for row in conn.execute("SELECT address FROM clients")]
+    guarantor_addresses = [row[0] for row in conn.execute("SELECT address FROM guarantors")]
+    vehicle_plates = [
+        row[0] for row in conn.execute(
+            "SELECT plate_number FROM collateral WHERE collateral_type = 'vehicle'"
+        ) if row[0]
+    ]
+    conn.close()
+
+    assert all(count > 0 for count in before_reset.values())
+    assert all(address.startswith("Brgy. ") and address.endswith(", Manila") for address in addresses)
+    assert set(guarantor_addresses) == {"Manila"}
+    assert all(plate.startswith("NCR-") for plate in vehicle_plates)
+
+    reset = api_obj.reset_demo_data()
+    assert reset["success"] is True
+    conn = database.get_connection()
+    after_reset = {
+        table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in ("collectors", "guarantors", "collateral")
+    }
+    conn.close()
+    assert after_reset == before_reset
 
     restarted, _, restarted_database, _ = fresh_api(tmp_path, monkeypatch)
     assert restarted.get_demo_status() is False

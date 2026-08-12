@@ -302,6 +302,7 @@ class Api:
         if count == 0:
             import demo_generator
             demo_generator.generate_demo_data()
+            demo_generator._enhance_with_v14_features()
 
     def _audit_event(self, cursor, event_type, entity_type, entity_id="", details=None):
         """Write a compact business audit event inside the caller transaction."""
@@ -438,11 +439,19 @@ class Api:
             conn = get_connection()
             c = conn.cursor()
             # Delete in order (foreign keys)
-            for table in ['payment_allocations', 'referral_commissions', 'penalties', 'payments',
-                          'amortization_schedule', 'loans', 'documents', 'clients']:
+            for table in [
+                'payment_allocations', 'referral_commissions', 'penalties', 'payments',
+                'amortization_schedule', 'documents', 'guarantors', 'collateral',
+                'loans', 'clients', 'collectors', 'audit_events',
+            ]:
                 c.execute(f"DELETE FROM {table}")
             # Reset auto-increment sequences
-            c.execute("DELETE FROM sqlite_sequence WHERE name IN ('loans','payments','amortization_schedule','penalties','documents','referral_commissions','payment_allocations')")
+            c.execute(
+                "DELETE FROM sqlite_sequence WHERE name IN "
+                "('loans','payments','amortization_schedule','penalties','documents',"
+                "'referral_commissions','payment_allocations','guarantors','collateral',"
+                "'collectors','audit_events')"
+            )
             conn.commit()
             conn.close()
 
@@ -450,6 +459,7 @@ class Api:
             import importlib, demo_generator
             importlib.reload(demo_generator)
             demo_generator.generate_demo_data()
+            demo_generator._enhance_with_v14_features()
 
             return {"success": True, "message": "Demo data regenerated successfully."}
         except Exception as e:
@@ -3019,7 +3029,7 @@ class Api:
     def get_app_info(self):
         """Get application info."""
         return {
-            "version": "1.5.0",
+            "version": "1.5.1",
             "name": APP_NAME,
             "demo_only": self._is_restricted_demo(),
             "demo_edition": self._demo_only,
